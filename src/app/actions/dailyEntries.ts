@@ -1,6 +1,6 @@
 'use server'
 
-import { db } from '@/lib/db'
+import { supabase, toISO } from '@/lib/supabaseServer'
 import type { DailyEntryDTO, MonthlyReportMeta } from '@/lib/types'
 import {
   monthLabel,
@@ -8,19 +8,33 @@ import {
   yearMonthOf,
 } from '@/lib/dates'
 
-function toDTO(e: any): DailyEntryDTO {
+interface DailyEntryRow {
+  id: string
+  entry_date: string
+  member_code: string | null
+  member_name: string
+  phone: string | null
+  service_name: string
+  therapist_name: string | null
+  amount: number
+  payment_mode: string
+  notes: string | null
+  created_at: string
+}
+
+function toDTO(e: DailyEntryRow): DailyEntryDTO {
   return {
     id: e.id,
-    entryDate: e.entryDate,
-    memberCode: e.memberCode ?? null,
-    memberName: e.memberName,
+    entryDate: e.entry_date,
+    memberCode: e.member_code ?? null,
+    memberName: e.member_name,
     phone: e.phone ?? null,
-    serviceName: e.serviceName,
-    therapistName: e.therapistName ?? null,
+    serviceName: e.service_name,
+    therapistName: e.therapist_name ?? null,
     amount: e.amount,
-    paymentMode: e.paymentMode,
+    paymentMode: e.payment_mode,
     notes: e.notes ?? null,
-    createdAt: e.createdAt?.toISOString?.() ?? String(e.createdAt),
+    createdAt: toISO(e.created_at),
   }
 }
 
@@ -29,23 +43,19 @@ export async function getDailyEntries(opts?: {
   date?: string         // YYYY-MM-DD
   yearMonth?: string    // YYYY-MM
 }): Promise<DailyEntryDTO[]> {
-  const where: { entryDate?: { gte?: string; lte?: string; equals?: string } } = {}
+  let q = supabase.from('daily_entries').select('*')
   if (opts?.date) {
-    where.entryDate = { equals: opts.date }
+    q = q.eq('entry_date', opts.date)
   } else if (opts?.yearMonth) {
     const [y, m] = opts.yearMonth.split('-').map((n) => parseInt(n, 10))
-    const start = new Date(y, m - 1, 1)
-    const end = new Date(y, m, 0)
-    where.entryDate = {
-      gte: start.toISOString().slice(0, 10),
-      lte: end.toISOString().slice(0, 10),
-    }
+    const start = new Date(y, m - 1, 1).toISOString().slice(0, 10)
+    const end = new Date(y, m, 0).toISOString().slice(0, 10)
+    q = q.gte('entry_date', start).lte('entry_date', end)
   }
-  const rows = await db.dailyEntry.findMany({
-    where,
-    orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
-  })
-  return rows.map(toDTO)
+  q = q.order('entry_date', { ascending: false }).order('created_at', { ascending: false })
+  const { data, error } = await q
+  if (error) throw new Error(`Failed to load daily entries: ${error.message}`)
+  return (data as DailyEntryRow[]).map(toDTO)
 }
 
 export interface CreateDailyEntryInput {
@@ -61,43 +71,65 @@ export interface CreateDailyEntryInput {
 }
 
 export async function createDailyEntry(input: CreateDailyEntryInput): Promise<DailyEntryDTO> {
-  const e = await db.dailyEntry.create({
-    data: {
-      entryDate: input.entryDate,
-      memberCode: input.memberCode ?? null,
-      memberName: input.memberName,
+  const { data, error } = await supabase
+    .from('daily_entries')
+    .insert({
+      entry_date: input.entryDate,
+      member_code: input.memberCode ?? null,
+      member_name: input.memberName,
       phone: input.phone ?? null,
-      serviceName: input.serviceName,
-      therapistName: input.therapistName ?? null,
+      service_name: input.serviceName,
+      therapist_name: input.therapistName ?? null,
       amount: input.amount ?? 0,
-      paymentMode: input.paymentMode ?? 'Cash',
+      payment_mode: input.paymentMode ?? 'Cash',
       notes: input.notes ?? null,
-    },
-  })
-  return toDTO(e)
+    })
+    .select()
+    .single()
+  if (error) throw new Error(`Failed to create daily entry: ${error.message}`)
+  return toDTO(data as DailyEntryRow)
 }
 
 export async function updateDailyEntry(
   id: string,
   patch: Partial<CreateDailyEntryInput>
 ): Promise<DailyEntryDTO> {
-  const e = await db.dailyEntry.update({ where: { id }, data: patch })
-  return toDTO(e)
+  const update: Record<string, any> = {}
+  if (patch.entryDate !== undefined) update.entry_date = patch.entryDate
+  if (patch.memberCode !== undefined) update.member_code = patch.memberCode
+  if (patch.memberName !== undefined) update.member_name = patch.memberName
+  if (patch.phone !== undefined) update.phone = patch.phone
+  if (patch.serviceName !== undefined) update.service_name = patch.serviceName
+  if (patch.therapistName !== undefined) update.therapist_name = patch.therapistName
+  if (patch.amount !== undefined) update.amount = patch.amount
+  if (patch.paymentMode !== undefined) update.payment_mode = patch.paymentMode
+  if (patch.notes !== undefined) update.notes = patch.notes
+
+  const { data, error } = await supabase
+    .from('daily_entries')
+    .update(update)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(`Failed to update daily entry: ${error.message}`)
+  return toDTO(data as DailyEntryRow)
 }
 
 export async function deleteDailyEntry(id: string): Promise<{ ok: true }> {
-  await db.dailyEntry.delete({ where: { id } })
+  const { error } = await supabase.from('daily_entries').delete().eq('id', id)
+  if (error) throw new Error(`Failed to delete daily entry: ${error.message}`)
   return { ok: true }
 }
 
 /** Returns a list of available monthly reports (months with at least one entry). */
 export async function getMonthlyReports(): Promise<MonthlyReportMeta[]> {
-  const rows = await db.dailyEntry.findMany({
-    select: { entryDate: true, amount: true },
-  })
+  const { data, error } = await supabase
+    .from('daily_entries')
+    .select('entry_date, amount')
+  if (error) throw new Error(`Failed to load monthly reports: ${error.message}`)
   const byMonth = new Map<string, { count: number; revenue: number }>()
-  for (const r of rows) {
-    const ym = yearMonthOf(r.entryDate)
+  for (const r of (data ?? []) as { entry_date: string; amount: number }[]) {
+    const ym = yearMonthOf(r.entry_date)
     const cur = byMonth.get(ym) ?? { count: 0, revenue: 0 }
     cur.count += 1
     cur.revenue += r.amount
@@ -121,18 +153,17 @@ export async function getMonthlyEntries(yearMonth: string): Promise<{
   label: string
 }> {
   const [y, m] = yearMonth.split('-').map((n) => parseInt(n, 10))
-  const start = new Date(y, m - 1, 1)
-  const end = new Date(y, m, 0)
-  const rows = await db.dailyEntry.findMany({
-    where: {
-      entryDate: {
-        gte: start.toISOString().slice(0, 10),
-        lte: end.toISOString().slice(0, 10),
-      },
-    },
-    orderBy: [{ entryDate: 'asc' }, { createdAt: 'asc' }],
-  })
-  const entries = rows.map(toDTO)
+  const start = new Date(y, m - 1, 1).toISOString().slice(0, 10)
+  const end = new Date(y, m, 0).toISOString().slice(0, 10)
+  const { data, error } = await supabase
+    .from('daily_entries')
+    .select('*')
+    .gte('entry_date', start)
+    .lte('entry_date', end)
+    .order('entry_date', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) throw new Error(`Failed to load monthly entries: ${error.message}`)
+  const entries = ((data ?? []) as DailyEntryRow[]).map(toDTO)
   return {
     entries,
     total: entries.reduce((s, e) => s + e.amount, 0),
@@ -148,11 +179,13 @@ export async function getTodayEntriesSummary(): Promise<{
   revenue: number
 }> {
   const today = new Date().toISOString().slice(0, 10)
-  const rows = await db.dailyEntry.findMany({
-    where: { entryDate: today },
-    orderBy: { createdAt: 'desc' },
-  })
-  const entries = rows.map(toDTO)
+  const { data, error } = await supabase
+    .from('daily_entries')
+    .select('*')
+    .eq('entry_date', today)
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(`Failed to load today's entries: ${error.message}`)
+  const entries = ((data ?? []) as DailyEntryRow[]).map(toDTO)
   return {
     entries,
     count: entries.length,

@@ -1,22 +1,36 @@
 'use server'
 
-import { db } from '@/lib/db'
+import { supabase, toISO } from '@/lib/supabaseServer'
 import type { ServiceDTO } from '@/lib/types'
 
-function toDTO(s: any): ServiceDTO {
+interface ServiceRow {
+  id: string
+  name: string
+  category: string
+  duration_min: number
+  price: number
+  is_active: boolean
+  created_at: string
+}
+
+function toDTO(r: ServiceRow): ServiceDTO {
   return {
-    id: s.id,
-    name: s.name,
-    category: s.category,
-    durationMin: s.durationMin,
-    price: s.price,
-    isActive: s.isActive,
+    id: r.id,
+    name: r.name,
+    category: r.category,
+    durationMin: r.duration_min,
+    price: r.price,
+    isActive: r.is_active,
   }
 }
 
 export async function getServices(): Promise<ServiceDTO[]> {
-  const rows = await db.service.findMany({ orderBy: { category: 'asc' } })
-  return rows.map(toDTO)
+  const { data, error } = await supabase
+    .from('services')
+    .select('*')
+    .order('category', { ascending: true })
+  if (error) throw new Error(`Failed to load services: ${error.message}`)
+  return (data as ServiceRow[]).map(toDTO)
 }
 
 export interface CreateServiceInput {
@@ -28,43 +42,60 @@ export interface CreateServiceInput {
 }
 
 export async function createService(input: CreateServiceInput): Promise<ServiceDTO> {
-  const s = await db.service.create({
-    data: {
+  const { data, error } = await supabase
+    .from('services')
+    .insert({
       name: input.name,
       category: input.category,
-      durationMin: input.durationMin,
+      duration_min: input.durationMin,
       price: input.price,
-      isActive: input.isActive ?? true,
-    },
-  })
-  return toDTO(s)
+      is_active: input.isActive ?? true,
+    })
+    .select()
+    .single()
+  if (error) throw new Error(`Failed to create service: ${error.message}`)
+  return toDTO(data as ServiceRow)
 }
 
 export async function updateService(id: string, patch: Partial<CreateServiceInput>): Promise<ServiceDTO> {
-  const s = await db.service.update({
-    where: { id },
-    data: {
-      ...(patch.name !== undefined ? { name: patch.name } : {}),
-      ...(patch.category !== undefined ? { category: patch.category } : {}),
-      ...(patch.durationMin !== undefined ? { durationMin: patch.durationMin } : {}),
-      ...(patch.price !== undefined ? { price: patch.price } : {}),
-      ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
-    },
-  })
-  return toDTO(s)
+  const update: Record<string, any> = {}
+  if (patch.name !== undefined) update.name = patch.name
+  if (patch.category !== undefined) update.category = patch.category
+  if (patch.durationMin !== undefined) update.duration_min = patch.durationMin
+  if (patch.price !== undefined) update.price = patch.price
+  if (patch.isActive !== undefined) update.is_active = patch.isActive
+
+  const { data, error } = await supabase
+    .from('services')
+    .update(update)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(`Failed to update service: ${error.message}`)
+  return toDTO(data as ServiceRow)
 }
 
 export async function toggleService(id: string): Promise<{ ok: true; isActive: boolean }> {
-  const s = await db.service.findUnique({ where: { id } })
-  if (!s) throw new Error('Service not found')
-  const updated = await db.service.update({
-    where: { id },
-    data: { isActive: !s.isActive },
-  })
-  return { ok: true, isActive: updated.isActive }
+  const { data: cur, error: e1 } = await supabase
+    .from('services')
+    .select('is_active')
+    .eq('id', id)
+    .single()
+  if (e1 || !cur) throw new Error('Service not found')
+  const next = !(cur as any).is_active
+  const { error: e2 } = await supabase
+    .from('services')
+    .update({ is_active: next })
+    .eq('id', id)
+  if (e2) throw new Error(`Failed to toggle service: ${e2.message}`)
+  return { ok: true, isActive: next }
 }
 
 export async function deleteService(id: string): Promise<{ ok: true }> {
-  await db.service.delete({ where: { id } })
+  const { error } = await supabase.from('services').delete().eq('id', id)
+  if (error) throw new Error(`Failed to delete service: ${error.message}`)
   return { ok: true }
 }
+
+// keep `toISO` referenced — used by other actions to normalize timestamptz strings
+void toISO

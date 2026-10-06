@@ -383,4 +383,3 @@ bun run lint         # ESLint check
 
 Proprietary — Bella Luxe Day Spa
 # Bella-Luxe-spa
-# Bella-Luxe-spa

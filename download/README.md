@@ -1,11 +1,9 @@
-# Bella Luxe Day Spa — CRM Database Deliverable
+# Bella Luxe Day Spa — CRM Database Deliverable (Supabase only)
 
 This folder contains the **single, complete SQL file** needed to set up the entire
-Bella Luxe Day Spa CRM database in Supabase, including all V2 features:
-
-- **Daily Entries** — customer walk-in / member visit log + monthly Excel report
-- **Staff Attendance** — per-day attendance with monthly report + salary calculation
-- **Per-day salary** on each staff member
+Bella Luxe Day Spa CRM database in Supabase. The app has been fully converted from
+Prisma + SQLite to Supabase (Postgres) — there is no Prisma schema, no `prisma/seed.ts`,
+no `db:push` or `db:seed` scripts. The only setup step is running this one SQL file.
 
 ## File
 
@@ -19,8 +17,14 @@ Bella Luxe Day Spa CRM database in Supabase, including all V2 features:
 2. Open `bella-luxe-spa-complete.sql`, copy the entire contents, and paste into the editor
 3. Click **Run** (it takes ~10 seconds — there's a lot of seed data)
 4. Verify in the **Table Editor** that you see 14 tables including `daily_entries` and `staff_attendance`
-5. Update your app's `DATABASE_URL` to point to your Supabase Postgres connection string (e.g. `postgresql://postgres.<ref>:<password>@<ref>.supabase.co:5432/postgres`)
-6. Restart the app — admin login: `admin@bellaluxe.com` / `BellaLuxe@2026`
+5. Get your API keys: **Project Settings** → **API** — copy Project URL, service_role key, and anon key
+6. Update `.env` with the four required values (see `.env.example` at the project root):
+   - `SUPABASE_URL` — Project URL
+   - `SUPABASE_SERVICE_ROLE_KEY` — service_role key (server-side, bypasses RLS)
+   - `NEXT_PUBLIC_SUPABASE_URL` — same Project URL (client-side)
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — anon public key (client-side, RLS-protected)
+7. Run `bun install && bun run dev`
+8. Open the app and log in with `admin@bellaluxe.com` / `BellaLuxe@2026`
 
 **Note:** This script is idempotent but **destructive on re-run** — it drops and recreates
 all tables. If you need to preserve data on a re-run, comment out the "CLEANUP"
@@ -100,3 +104,13 @@ The complete SQL file seeds the following demo data:
 | Campaigns | 3 | WhatsApp + Email + SMS |
 | Daily Entries | 162 | Last 30 days, ~4-8 per day, mix of members & walk-ins |
 | Staff Attendance | 360 | Last 60 days, 6 staff each, Sundays = Holiday |
+
+## What's NOT in the database (Prisma is gone)
+
+- ❌ No `prisma/schema.prisma` — schema is defined in this SQL file
+- ❌ No `prisma/seed.ts` — seed data is in this SQL file
+- ❌ No `prisma/dev.db` — there's no local SQLite, Supabase is the only database
+- ❌ No `db:push` or `db:seed` Bun scripts — running this SQL file is the only setup step
+- ❌ No `@prisma/client` in package.json — replaced with `@supabase/supabase-js`
+
+The app's server actions all use `supabase.from('table').select()/insert()/update()/delete()/upsert()` — no Prisma queries anywhere.

@@ -1,6 +1,6 @@
 'use server'
 
-import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabaseServer'
 import type {
   RevenuePoint,
   MemberGrowthPoint,
@@ -23,14 +23,15 @@ export async function getRevenueReport(): Promise<RevenuePoint[]> {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     months.push(d)
   }
-  const payments = await db.payment.findMany({
-    where: { status: 'Paid' },
-    select: { amount: true, paidAt: true },
-  })
+  const { data: payments, error } = await supabase
+    .from('payments')
+    .select('amount, paid_at')
+    .eq('status', 'Paid')
+  if (error) throw new Error(`Failed to load revenue report: ${error.message}`)
   const buckets: Record<string, number> = {}
   for (const m of months) buckets[monthKey(m)] = 0
-  for (const p of payments) {
-    const d = new Date(p.paidAt)
+  for (const p of (payments ?? []) as { amount: number; paid_at: string }[]) {
+    const d = new Date(p.paid_at)
     const k = monthKey(d)
     if (k in buckets) buckets[k] += p.amount
   }
@@ -47,46 +48,54 @@ export async function getMemberGrowthReport(): Promise<MemberGrowthPoint[]> {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     months.push(d)
   }
-  const members = await db.member.findMany({
-    select: { createdAt: true },
-    orderBy: { createdAt: 'asc' },
-  })
-  // cumulative count up to end of each month
+  const { data: members, error } = await supabase
+    .from('members')
+    .select('created_at')
+    .order('created_at', { ascending: true })
+  if (error) throw new Error(`Failed to load member growth: ${error.message}`)
   const endOfMonths = months.map((m) => new Date(m.getFullYear(), m.getMonth() + 1, 0, 23, 59, 59, 999))
   return months.map((m, i) => {
     const end = endOfMonths[i]
-    const cumulative = members.filter((mem) => new Date(mem.createdAt) <= end).length
+    const cumulative = (members ?? []).filter((mem: any) => new Date(mem.created_at) <= end).length
     return { month: monthLabel(m), members: cumulative }
   })
 }
 
 export async function getPlanPerformanceReport(): Promise<PlanPerformancePoint[]> {
-  const plans = await db.membershipPlan.findMany({
-    include: {
-      memberships: {
-        include: { payments: { where: { status: 'Paid' }, select: { amount: true } } },
-      },
-    },
-    orderBy: { price: 'desc' },
-  })
-  return plans.map((p: any) => {
-    const memberCount = p.memberships.length
-    const revenue = p.memberships.reduce(
-      (sum: number, m: any) =>
-        sum + m.payments.reduce((s: number, x: any) => s + x.amount, 0),
-      0
-    )
+  const { data: plans, error } = await supabase
+    .from('membership_plans')
+    .select(`
+      *,
+      memberships:memberships(
+        id,
+        payments:payments(amount)
+      )
+    `)
+    .order('price', { ascending: false })
+  if (error) throw new Error(`Failed to load plan performance: ${error.message}`)
+  return (plans as any[]).map((p) => {
+    const memberCount = p.memberships?.length ?? 0
+    const revenue = (p.memberships ?? []).reduce((sum: number, m: any) => {
+      const paid = (m.payments ?? []).filter((pay: any) => pay.amount > 0)
+      return sum + paid.reduce((s: number, x: any) => s + x.amount, 0)
+    }, 0)
     return { plan: p.name, members: memberCount, revenue }
   })
 }
 
 export async function getRetentionReport(): Promise<RetentionPoint[]> {
-  const [active, expired] = await Promise.all([
-    db.membership.count({ where: { status: 'Active' } }),
-    db.membership.count({ where: { status: 'Expired' } }),
-  ])
+  const { count: active, error: aErr } = await supabase
+    .from('memberships')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'Active')
+  if (aErr) throw new Error(`Failed to load retention: ${aErr.message}`)
+  const { count: expired, error: eErr } = await supabase
+    .from('memberships')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'Expired')
+  if (eErr) throw new Error(`Failed to load retention: ${eErr.message}`)
   return [
-    { name: 'Retained', value: active, color: '#2E9E6E' },
-    { name: 'Churned', value: expired, color: '#D9364B' },
+    { name: 'Retained', value: active ?? 0, color: '#2E9E6E' },
+    { name: 'Churned', value: expired ?? 0, color: '#D9364B' },
   ]
 }

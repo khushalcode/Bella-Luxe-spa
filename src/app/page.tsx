@@ -25,6 +25,16 @@ import {
   getAvailableMonths,
 } from "@/app/actions/attendance";
 
+// Each loader returns an empty default on failure so the page renders
+// even when Supabase env vars are not yet configured. The actual error
+// is logged to the server console for the developer to see.
+function safe<T>(label: string, p: Promise<T>, fallback: T): Promise<T> {
+  return p.catch((e) => {
+    console.error(`[loader:${label}]`, e instanceof Error ? e.message : e)
+    return fallback
+  })
+}
+
 export default async function Page() {
   const [
     summary,
@@ -46,24 +56,37 @@ export default async function Page() {
     salaryRows,
     attendanceMonths,
   ] = await Promise.all([
-    getDashboardSummary(),
-    getMembers(),
-    getPlans(),
-    getServices(),
-    getStaff(),
-    getAppointments(),
-    getPayments(),
-    getPackages(),
-    getCampaigns(),
-    getRevenueReport(),
-    getMemberGrowthReport(),
-    getPlanPerformanceReport(),
-    getRetentionReport(),
-    getDailyEntries(),                 // most recent first
-    getMonthlyReports(),
-    getMonthlyAttendance(),            // current month
-    getMonthlySalary(),                // current month
-    getAvailableMonths(),
+    safe("summary", getDashboardSummary(), {
+      kpis: {
+        totalMembers: 0, activeMemberships: 0, expiringSoon: 0, expired: 0,
+        totalRevenue: 0, revenueThisMonth: 0, revenueLastMonth: 0, newMembersThisMonth: 0,
+        todayEntryCount: 0, todayEntryRevenue: 0, presentToday: 0, absentToday: 0,
+      },
+      membershipBreakdown: [],
+      popularPlans: [],
+      recentMembers: [],
+      upcomingExpirations: [],
+      todaysAppointments: [],
+      todaysEntries: [],
+      lastMonthReport: null,
+    }),
+    safe("members", getMembers(), []),
+    safe("plans", getPlans(), []),
+    safe("services", getServices(), []),
+    safe("staff", getStaff(), []),
+    safe("appointments", getAppointments(), []),
+    safe("payments", getPayments(), []),
+    safe("packages", getPackages(), []),
+    safe("campaigns", getCampaigns(), []),
+    safe("revenueReport", getRevenueReport(), []),
+    safe("memberGrowth", getMemberGrowthReport(), []),
+    safe("planPerformance", getPlanPerformanceReport(), []),
+    safe("retention", getRetentionReport(), []),
+    safe("dailyEntries", getDailyEntries(), []),
+    safe("monthlyReports", getMonthlyReports(), []),
+    safe("attendance", getMonthlyAttendance(), []),
+    safe("salaryRows", getMonthlySalary(), []),
+    safe("attendanceMonths", getAvailableMonths(), []),
   ]);
 
   const initial: SpaData = {

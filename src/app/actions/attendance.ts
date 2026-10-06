@@ -1,6 +1,6 @@
 'use server'
 
-import { db } from '@/lib/db'
+import { supabase, toISO } from '@/lib/supabaseServer'
 import type { StaffAttendanceDTO, StaffSalaryRow } from '@/lib/types'
 import { monthLabel } from '@/lib/dates'
 
@@ -11,17 +11,29 @@ function currentYearMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-function toDTO(a: any): StaffAttendanceDTO {
+interface AttendanceRow {
+  id: string
+  staff_id: string
+  date: string
+  status: 'Present' | 'Half-Day' | 'Absent' | 'Leave' | 'Holiday'
+  check_in: string | null
+  check_out: string | null
+  notes: string | null
+  created_at: string
+  staff?: { id: string; name: string } | null
+}
+
+function toDTO(a: AttendanceRow): StaffAttendanceDTO {
   return {
     id: a.id,
-    staffId: a.staffId,
+    staffId: a.staff_id,
     staffName: a.staff?.name ?? undefined,
     date: a.date,
-    status: a.status as StaffAttendanceDTO['status'],
-    checkIn: a.checkIn ?? null,
-    checkOut: a.checkOut ?? null,
+    status: a.status,
+    checkIn: a.check_in ?? null,
+    checkOut: a.check_out ?? null,
     notes: a.notes ?? null,
-    createdAt: a.createdAt?.toISOString?.() ?? String(a.createdAt),
+    createdAt: toISO(a.created_at),
   }
 }
 
@@ -30,10 +42,13 @@ export async function cleanupOldAttendance(): Promise<{ deleted: number }> {
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - RETENTION_DAYS)
   const cutoffStr = cutoff.toISOString().slice(0, 10)
-  const result = await db.staffAttendance.deleteMany({
-    where: { date: { lt: cutoffStr } },
-  })
-  return { deleted: result.count }
+  const { data, error } = await supabase
+    .from('staff_attendance')
+    .delete()
+    .lt('date', cutoffStr)
+    .select('id')
+  if (error) throw new Error(`Failed to archive old attendance: ${error.message}`)
+  return { deleted: (data ?? []).length }
 }
 
 /** Returns attendance for a given month (defaults to current month). */
@@ -41,31 +56,36 @@ export async function getMonthlyAttendance(yearMonth?: string): Promise<StaffAtt
   await cleanupOldAttendance()
   const ym = yearMonth ?? currentYearMonth()
   const [y, m] = ym.split('-').map((n) => parseInt(n, 10))
-  const start = new Date(y, m - 1, 1)
-  const end = new Date(y, m, 0)
-  const rows = await db.staffAttendance.findMany({
-    where: {
-      date: {
-        gte: start.toISOString().slice(0, 10),
-        lte: end.toISOString().slice(0, 10),
-      },
-    },
-    include: { staff: true },
-    orderBy: [{ date: 'asc' }, { staff: { name: 'asc' } }],
-  })
-  return rows.map(toDTO)
+  const start = new Date(y, m - 1, 1).toISOString().slice(0, 10)
+  const end = new Date(y, m, 0).toISOString().slice(0, 10)
+  const { data, error } = await supabase
+    .from('staff_attendance')
+    .select(`
+      *,
+      staff:staff(id, name)
+    `)
+    .gte('date', start)
+    .lte('date', end)
+    .order('date', { ascending: true })
+    .order('staff', { ascending: true })
+  if (error) throw new Error(`Failed to load monthly attendance: ${error.message}`)
+  return ((data ?? []) as AttendanceRow[]).map(toDTO)
 }
 
 /** Returns attendance for a specific date (defaults to today). */
 export async function getAttendanceForDate(date?: string): Promise<StaffAttendanceDTO[]> {
   await cleanupOldAttendance()
   const d = date ?? new Date().toISOString().slice(0, 10)
-  const rows = await db.staffAttendance.findMany({
-    where: { date: d },
-    include: { staff: true },
-    orderBy: { staff: { name: 'asc' } },
-  })
-  return rows.map(toDTO)
+  const { data, error } = await supabase
+    .from('staff_attendance')
+    .select(`
+      *,
+      staff:staff(id, name)
+    `)
+    .eq('date', d)
+    .order('staff', { ascending: true })
+  if (error) throw new Error(`Failed to load attendance for date: ${error.message}`)
+  return ((data ?? []) as AttendanceRow[]).map(toDTO)
 }
 
 export interface MarkAttendanceInput {
@@ -77,29 +97,28 @@ export interface MarkAttendanceInput {
   notes?: string | null
 }
 
-/** Upserts a single staff-day attendance record. */
+/** Upserts a single staff-day attendance record (using the unique (staff_id, date) constraint). */
 export async function markAttendance(input: MarkAttendanceInput): Promise<StaffAttendanceDTO> {
-  const a = await db.staffAttendance.upsert({
-    where: {
-      staffId_date: { staffId: input.staffId, date: input.date },
-    },
-    create: {
-      staffId: input.staffId,
-      date: input.date,
-      status: input.status,
-      checkIn: input.checkIn ?? null,
-      checkOut: input.checkOut ?? null,
-      notes: input.notes ?? null,
-    },
-    update: {
-      status: input.status,
-      checkIn: input.checkIn ?? null,
-      checkOut: input.checkOut ?? null,
-      notes: input.notes ?? null,
-    },
-    include: { staff: true },
-  })
-  return toDTO(a)
+  const payload = {
+    staff_id: input.staffId,
+    date: input.date,
+    status: input.status,
+    check_in: input.checkIn ?? null,
+    check_out: input.checkOut ?? null,
+    notes: input.notes ?? null,
+  }
+
+  // Try insert; on conflict (staff_id, date), do update
+  const { data, error } = await supabase
+    .from('staff_attendance')
+    .upsert(payload, { onConflict: 'staff_id,date' })
+    .select(`
+      *,
+      staff:staff(id, name)
+    `)
+    .single()
+  if (error) throw new Error(`Failed to mark attendance: ${error.message}`)
+  return toDTO(data as AttendanceRow)
 }
 
 /** Bulk-marks attendance for many staff for a single date. */
@@ -113,30 +132,24 @@ export async function bulkMarkAttendance(
     notes?: string | null
   }>
 ): Promise<{ ok: true; count: number }> {
-  for (const r of records) {
-    await db.staffAttendance.upsert({
-      where: { staffId_date: { staffId: r.staffId, date } },
-      create: {
-        staffId: r.staffId,
-        date,
-        status: r.status,
-        checkIn: r.checkIn ?? null,
-        checkOut: r.checkOut ?? null,
-        notes: r.notes ?? null,
-      },
-      update: {
-        status: r.status,
-        checkIn: r.checkIn ?? null,
-        checkOut: r.checkOut ?? null,
-        notes: r.notes ?? null,
-      },
-    })
-  }
+  const rows = records.map((r) => ({
+    staff_id: r.staffId,
+    date,
+    status: r.status,
+    check_in: r.checkIn ?? null,
+    check_out: r.checkOut ?? null,
+    notes: r.notes ?? null,
+  }))
+  const { error } = await supabase
+    .from('staff_attendance')
+    .upsert(rows, { onConflict: 'staff_id,date' })
+  if (error) throw new Error(`Failed to bulk-mark attendance: ${error.message}`)
   return { ok: true, count: records.length }
 }
 
 export async function deleteAttendance(id: string): Promise<{ ok: true }> {
-  await db.staffAttendance.delete({ where: { id } })
+  const { error } = await supabase.from('staff_attendance').delete().eq('id', id)
+  if (error) throw new Error(`Failed to delete attendance: ${error.message}`)
   return { ok: true }
 }
 
@@ -151,30 +164,34 @@ export async function deleteAttendance(id: string): Promise<{ ok: true }> {
 export async function getMonthlySalary(yearMonth?: string): Promise<StaffSalaryRow[]> {
   const ym = yearMonth ?? currentYearMonth()
   const [y, m] = ym.split('-').map((n) => parseInt(n, 10))
-  const start = new Date(y, m - 1, 1)
-  const end = new Date(y, m, 0)
-  const staffList = await db.staff.findMany({ orderBy: { name: 'asc' } })
-  const records = await db.staffAttendance.findMany({
-    where: {
-      date: {
-        gte: start.toISOString().slice(0, 10),
-        lte: end.toISOString().slice(0, 10),
-      },
-    },
-  })
+  const start = new Date(y, m - 1, 1).toISOString().slice(0, 10)
+  const end = new Date(y, m, 0).toISOString().slice(0, 10)
+
+  const { data: staffList, error: sErr } = await supabase
+    .from('staff')
+    .select('*')
+    .order('name', { ascending: true })
+  if (sErr) throw new Error(`Failed to load staff: ${sErr.message}`)
+
+  const { data: records, error: aErr } = await supabase
+    .from('staff_attendance')
+    .select('staff_id, status')
+    .gte('date', start)
+    .lte('date', end)
+  if (aErr) throw new Error(`Failed to load attendance: ${aErr.message}`)
 
   const byStaff = new Map<string, { Present: number; 'Half-Day': number; Absent: number; Leave: number; Holiday: number }>()
-  for (const r of records) {
-    const cur = byStaff.get(r.staffId) ?? { Present: 0, 'Half-Day': 0, Absent: 0, Leave: 0, Holiday: 0 }
+  for (const r of (records ?? []) as { staff_id: string; status: string }[]) {
+    const cur = byStaff.get(r.staff_id) ?? { Present: 0, 'Half-Day': 0, Absent: 0, Leave: 0, Holiday: 0 }
     if (cur[r.status as keyof typeof cur] !== undefined) {
       cur[r.status as keyof typeof cur] += 1
     }
-    byStaff.set(r.staffId, cur)
+    byStaff.set(r.staff_id, cur)
   }
 
-  return staffList.map((s) => {
+  return (staffList as any[]).map((s) => {
     const counts = byStaff.get(s.id) ?? { Present: 0, 'Half-Day': 0, Absent: 0, Leave: 0, Holiday: 0 }
-    const perDay = s.perDaySalary ?? 0
+    const perDay = s.per_day_salary ?? 0
     const computedSalary = counts.Present * perDay + counts['Half-Day'] * perDay * 0.5
     const deductions = counts.Absent * perDay
     const totalDays = counts.Present + counts['Half-Day'] + counts.Absent + counts.Leave + counts.Holiday
@@ -200,9 +217,10 @@ export async function getMonthlySalary(yearMonth?: string): Promise<StaffSalaryR
 /** Returns the available months that have attendance data (for the date/month-wise report selector). */
 export async function getAvailableMonths(): Promise<{ yearMonth: string; label: string; count: number }[]> {
   await cleanupOldAttendance()
-  const rows = await db.staffAttendance.findMany({ select: { date: true } })
+  const { data, error } = await supabase.from('staff_attendance').select('date')
+  if (error) throw new Error(`Failed to load attendance months: ${error.message}`)
   const byMonth = new Map<string, number>()
-  for (const r of rows) {
+  for (const r of (data ?? []) as { date: string }[]) {
     const ym = r.date.slice(0, 7)
     byMonth.set(ym, (byMonth.get(ym) ?? 0) + 1)
   }
@@ -224,7 +242,12 @@ export async function getTodayAttendanceSummary(): Promise<{
   holiday: number
 }> {
   const today = new Date().toISOString().slice(0, 10)
-  const rows = await db.staffAttendance.findMany({ where: { date: today } })
+  const { data, error } = await supabase
+    .from('staff_attendance')
+    .select('status')
+    .eq('date', today)
+  if (error) throw new Error(`Failed to load today's attendance: ${error.message}`)
+  const rows = (data ?? []) as { status: string }[]
   return {
     present: rows.filter((r) => r.status === 'Present').length,
     absent: rows.filter((r) => r.status === 'Absent').length,

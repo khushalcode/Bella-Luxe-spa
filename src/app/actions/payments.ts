@@ -1,37 +1,56 @@
 'use server'
 
-import { db } from '@/lib/db'
+import { supabase, toISO } from '@/lib/supabaseServer'
 import type { PaymentDTO } from '@/lib/types'
 
-function toDTO(p: any): PaymentDTO {
+interface PaymentRow {
+  id: string
+  member_id: string
+  membership_id: string | null
+  appointment_id: string | null
+  amount: number
+  method: string
+  status: string
+  invoice_no: string
+  paid_at: string
+  member?: { id: string; name: string } | null
+  membership?: {
+    id: string
+    plan: { id: string; name: string } | null
+  } | null
+}
+
+function toDTO(p: PaymentRow): PaymentDTO {
   return {
     id: p.id,
-    memberId: p.memberId,
-    memberName: p.member?.name,
-    membershipId: p.membershipId ?? null,
-    appointmentId: p.appointmentId ?? null,
+    memberId: p.member_id,
+    memberName: p.member?.name ?? undefined,
+    membershipId: p.membership_id ?? null,
+    appointmentId: p.appointment_id ?? null,
     description: p.membership?.plan?.name
       ? `${p.membership.plan.name} Membership`
-      : p.appointmentId
+      : p.appointment_id
       ? 'Appointment Payment'
       : 'General Payment',
     amount: p.amount,
     method: p.method,
     status: p.status,
-    invoiceNo: p.invoiceNo,
-    paidAt: p.paidAt?.toISOString?.() ?? String(p.paidAt),
+    invoiceNo: p.invoice_no,
+    paidAt: toISO(p.paid_at),
   }
 }
 
 export async function getPayments(): Promise<PaymentDTO[]> {
-  const rows = await db.payment.findMany({
-    include: {
-      member: true,
-      membership: { include: { plan: true } },
-    },
-    orderBy: { paidAt: 'desc' },
-  })
-  return rows.map(toDTO)
+  const { data, error } = await supabase
+    .from('payments')
+    .select(`
+      *,
+      member:members(id, name),
+      membership:memberships(id, plan:membership_plans(id, name))
+    `)
+    .order('paid_at', { ascending: false })
+  if (error) throw new Error(`Failed to load payments: ${error.message}`)
+  return (data as PaymentRow[]).map(toDTO)
 }
 
 export interface CreatePaymentInput {
@@ -44,32 +63,43 @@ export interface CreatePaymentInput {
 export async function createPayment(
   input: CreatePaymentInput
 ): Promise<PaymentDTO & { invoiceNo: string }> {
-  const invCount = await db.payment.count()
-  const invoiceNo = `INV-2026-${String(2001 + invCount).padStart(4, '0')}`
-  const p = await db.payment.create({
-    data: {
-      memberId: input.memberId,
+  // Count existing payments to generate the next invoice number
+  const { count, error: cErr } = await supabase
+    .from('payments')
+    .select('*', { count: 'exact', head: true })
+  if (cErr) throw new Error(`Failed to count payments: ${cErr.message}`)
+  const invoiceNo = `INV-2026-${String(2001 + (count ?? 0)).padStart(4, '0')}`
+
+  const { data, error } = await supabase
+    .from('payments')
+    .insert({
+      member_id: input.memberId,
       amount: input.amount,
       method: input.method,
       status: input.status ?? 'Paid',
-      invoiceNo,
-    },
-    include: {
-      member: true,
-      membership: { include: { plan: true } },
-    },
-  })
-  return { ...toDTO(p), invoiceNo }
+      invoice_no: invoiceNo,
+    })
+    .select(`
+      *,
+      member:members(id, name),
+      membership:memberships(id, plan:membership_plans(id, name))
+    `)
+    .single()
+  if (error) throw new Error(`Failed to create payment: ${error.message}`)
+  return { ...toDTO(data as PaymentRow), invoiceNo }
 }
 
 export async function refundPayment(id: string): Promise<PaymentDTO> {
-  const p = await db.payment.update({
-    where: { id },
-    data: { status: 'Refunded' },
-    include: {
-      member: true,
-      membership: { include: { plan: true } },
-    },
-  })
-  return toDTO(p)
+  const { data, error } = await supabase
+    .from('payments')
+    .update({ status: 'Refunded' })
+    .eq('id', id)
+    .select(`
+      *,
+      member:members(id, name),
+      membership:memberships(id, plan:membership_plans(id, name))
+    `)
+    .single()
+  if (error) throw new Error(`Failed to refund payment: ${error.message}`)
+  return toDTO(data as PaymentRow)
 }

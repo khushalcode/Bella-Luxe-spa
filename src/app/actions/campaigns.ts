@@ -1,24 +1,39 @@
 'use server'
 
-import { db } from '@/lib/db'
+import { supabase, toISO } from '@/lib/supabaseServer'
 import type { CampaignDTO } from '@/lib/types'
 
-function toDTO(c: any): CampaignDTO {
+interface CampaignRow {
+  id: string
+  name: string
+  channel: string
+  template: string | null
+  segment: any
+  scheduled_at: string | null
+  status: string
+  created_at: string
+}
+
+function toDTO(r: CampaignRow): CampaignDTO {
   return {
-    id: c.id,
-    name: c.name,
-    channel: c.channel,
-    template: c.template,
-    segment: c.segment,
-    scheduledAt: c.scheduledAt ?? null,
-    status: c.status,
-    createdAt: c.createdAt?.toISOString?.() ?? String(c.createdAt),
+    id: r.id,
+    name: r.name,
+    channel: r.channel,
+    template: r.template ?? '',
+    segment: typeof r.segment === 'string' ? r.segment : JSON.stringify(r.segment ?? []),
+    scheduledAt: r.scheduled_at ?? null,
+    status: r.status,
+    createdAt: toISO(r.created_at),
   }
 }
 
 export async function getCampaigns(): Promise<CampaignDTO[]> {
-  const rows = await db.campaign.findMany({ orderBy: { createdAt: 'desc' } })
-  return rows.map(toDTO)
+  const { data, error } = await supabase
+    .from('campaigns')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(`Failed to load campaigns: ${error.message}`)
+  return (data as CampaignRow[]).map(toDTO)
 }
 
 export interface CreateCampaignInput {
@@ -31,25 +46,33 @@ export interface CreateCampaignInput {
 }
 
 export async function createCampaign(input: CreateCampaignInput): Promise<CampaignDTO> {
-  const c = await db.campaign.create({
-    data: {
+  const { data, error } = await supabase
+    .from('campaigns')
+    .insert({
       name: input.name,
       channel: input.channel,
       template: input.template,
-      segment: JSON.stringify(input.segment),
-      scheduledAt: input.scheduledAt ?? null,
+      segment: input.segment,
+      scheduled_at: input.scheduledAt ?? null,
       status: input.status ?? 'Draft',
-    },
-  })
-  return toDTO(c)
+    })
+    .select()
+    .single()
+  if (error) throw new Error(`Failed to create campaign: ${error.message}`)
+  return toDTO(data as CampaignRow)
 }
 
 export async function sendCampaign(id: string): Promise<{ ok: true }> {
-  await db.campaign.update({ where: { id }, data: { status: 'Sent' } })
+  const { error } = await supabase
+    .from('campaigns')
+    .update({ status: 'Sent' })
+    .eq('id', id)
+  if (error) throw new Error(`Failed to send campaign: ${error.message}`)
   return { ok: true }
 }
 
 export async function deleteCampaign(id: string): Promise<{ ok: true }> {
-  await db.campaign.delete({ where: { id } })
+  const { error } = await supabase.from('campaigns').delete().eq('id', id)
+  if (error) throw new Error(`Failed to delete campaign: ${error.message}`)
   return { ok: true }
 }

@@ -1,43 +1,79 @@
 'use server'
 
-import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabaseServer'
 import type { PlanDTO } from '@/lib/types'
 
-function safeParse(s: string): string[] {
+interface PlanRow {
+  id: string
+  name: string
+  price: number
+  duration_days: number
+  sessions_included: number
+  discount_pct: number
+  benefits: any
+  is_active: boolean
+  created_at: string
+}
+
+interface MembershipRow {
+  id: string
+  plan_id: string
+}
+
+interface PaymentRow {
+  amount: number
+}
+
+function safeParse(s: any): string[] {
+  if (Array.isArray(s)) return s
   try { return JSON.parse(s) } catch { return [] }
 }
 
-function toDTO(p: any, memberCount = 0, revenue = 0): PlanDTO {
+function toDTO(p: PlanRow, memberCount = 0, revenue = 0): PlanDTO {
   return {
     id: p.id,
     name: p.name,
     price: p.price,
-    durationDays: p.durationDays,
-    sessionsIncluded: p.sessionsIncluded,
-    discountPct: p.discountPct,
-    benefits: p.benefits ? safeParse(p.benefits) : [],
-    isActive: p.isActive,
+    durationDays: p.duration_days,
+    sessionsIncluded: p.sessions_included,
+    discountPct: p.discount_pct,
+    benefits: safeParse(p.benefits),
+    isActive: p.is_active,
     memberCount,
     revenue,
   }
 }
 
 export async function getPlans(): Promise<PlanDTO[]> {
-  const plans = await db.membershipPlan.findMany({
-    include: {
-      memberships: {
-        include: { payments: { where: { status: 'Paid' }, select: { amount: true } } },
-      },
-    },
-    orderBy: { price: 'desc' },
-  })
-  return plans.map((p: any) => {
-    const memberCount = p.memberships.length
-    const revenue = p.memberships.reduce(
-      (sum: number, m: any) =>
-        sum + m.payments.reduce((s: number, x: any) => s + x.amount, 0),
-      0
-    )
+  // Load all plans
+  const { data: plans, error } = await supabase
+    .from('membership_plans')
+    .select('*')
+    .order('price', { ascending: false })
+  if (error) throw new Error(`Failed to load plans: ${error.message}`)
+  if (!plans || plans.length === 0) return []
+
+  // Load all memberships (just plan_id)
+  const { data: memberships, error: mErr } = await supabase
+    .from('memberships')
+    .select('id, plan_id')
+  if (mErr) throw new Error(`Failed to load memberships: ${mErr.message}`)
+
+  // Load all paid payments (membership_id, amount)
+  const { data: payments, error: pErr } = await supabase
+    .from('payments')
+    .select('membership_id, amount')
+    .eq('status', 'Paid')
+  if (pErr) throw new Error(`Failed to load payments: ${pErr.message}`)
+
+  // Aggregate in JS
+  return (plans as PlanRow[]).map((p) => {
+    const planMemberships = (memberships as MembershipRow[]).filter((m) => m.plan_id === p.id)
+    const memberCount = planMemberships.length
+    const membershipIds = new Set(planMemberships.map((m) => m.id))
+    const revenue = (payments as PaymentRow[])
+      .filter((pay) => pay.membership_id && membershipIds.has(pay.membership_id))
+      .reduce((s, p) => s + p.amount, 0)
     return toDTO(p, memberCount, revenue)
   })
 }
@@ -53,47 +89,61 @@ export interface CreatePlanInput {
 }
 
 export async function createPlan(input: CreatePlanInput): Promise<PlanDTO> {
-  const p = await db.membershipPlan.create({
-    data: {
+  const { data, error } = await supabase
+    .from('membership_plans')
+    .insert({
       name: input.name,
       price: input.price,
-      durationDays: input.durationDays,
-      sessionsIncluded: input.sessionsIncluded,
-      discountPct: input.discountPct,
-      benefits: JSON.stringify(input.benefits),
-      isActive: input.isActive ?? true,
-    },
-  })
-  return toDTO(p, 0, 0)
+      duration_days: input.durationDays,
+      sessions_included: input.sessionsIncluded,
+      discount_pct: input.discountPct,
+      benefits: input.benefits,
+      is_active: input.isActive ?? true,
+    })
+    .select()
+    .single()
+  if (error) throw new Error(`Failed to create plan: ${error.message}`)
+  return toDTO(data as PlanRow, 0, 0)
 }
 
 export async function updatePlan(id: string, patch: Partial<CreatePlanInput>): Promise<PlanDTO> {
-  const p = await db.membershipPlan.update({
-    where: { id },
-    data: {
-      ...(patch.name !== undefined ? { name: patch.name } : {}),
-      ...(patch.price !== undefined ? { price: patch.price } : {}),
-      ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
-      ...(patch.sessionsIncluded !== undefined ? { sessionsIncluded: patch.sessionsIncluded } : {}),
-      ...(patch.discountPct !== undefined ? { discountPct: patch.discountPct } : {}),
-      ...(patch.benefits !== undefined ? { benefits: JSON.stringify(patch.benefits) } : {}),
-      ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
-    },
-  })
-  return toDTO(p, 0, 0)
+  const update: Record<string, any> = {}
+  if (patch.name !== undefined) update.name = patch.name
+  if (patch.price !== undefined) update.price = patch.price
+  if (patch.durationDays !== undefined) update.duration_days = patch.durationDays
+  if (patch.sessionsIncluded !== undefined) update.sessions_included = patch.sessionsIncluded
+  if (patch.discountPct !== undefined) update.discount_pct = patch.discountPct
+  if (patch.benefits !== undefined) update.benefits = patch.benefits
+  if (patch.isActive !== undefined) update.is_active = patch.isActive
+
+  const { data, error } = await supabase
+    .from('membership_plans')
+    .update(update)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(`Failed to update plan: ${error.message}`)
+  return toDTO(data as PlanRow, 0, 0)
 }
 
 export async function togglePlan(id: string): Promise<{ ok: true; isActive: boolean }> {
-  const p = await db.membershipPlan.findUnique({ where: { id } })
-  if (!p) throw new Error('Plan not found')
-  const updated = await db.membershipPlan.update({
-    where: { id },
-    data: { isActive: !p.isActive },
-  })
-  return { ok: true, isActive: updated.isActive }
+  const { data: cur, error: e1 } = await supabase
+    .from('membership_plans')
+    .select('is_active')
+    .eq('id', id)
+    .single()
+  if (e1 || !cur) throw new Error('Plan not found')
+  const next = !(cur as any).is_active
+  const { error: e2 } = await supabase
+    .from('membership_plans')
+    .update({ is_active: next })
+    .eq('id', id)
+  if (e2) throw new Error(`Failed to toggle plan: ${e2.message}`)
+  return { ok: true, isActive: next }
 }
 
 export async function deletePlan(id: string): Promise<{ ok: true }> {
-  await db.membershipPlan.delete({ where: { id } })
+  const { error } = await supabase.from('membership_plans').delete().eq('id', id)
+  if (error) throw new Error(`Failed to delete plan: ${error.message}`)
   return { ok: true }
 }

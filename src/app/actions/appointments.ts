@@ -1,30 +1,53 @@
 'use server'
 
-import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabaseServer'
 import type { AppointmentDTO } from '@/lib/types'
 
-function toDTO(a: any): AppointmentDTO {
+interface AppointmentRow {
+  id: string
+  member_id: string
+  service_id: string
+  staff_id: string | null
+  starts_at: string
+  ends_at: string
+  status: string
+  notes: string | null
+}
+
+interface MemberRef { id: string; name: string }
+interface ServiceRef { id: string; name: string }
+interface StaffRef { id: string; name: string }
+
+function toDTO(a: AppointmentRow, member?: MemberRef, service?: ServiceRef, staff?: StaffRef | null): AppointmentDTO {
   return {
     id: a.id,
-    memberId: a.memberId,
-    memberName: a.member?.name,
-    serviceId: a.serviceId,
-    serviceName: a.service?.name,
-    staffId: a.staffId ?? null,
-    staffName: a.staff?.name ?? null,
-    startsAt: a.startsAt,
-    endsAt: a.endsAt,
+    memberId: a.member_id,
+    memberName: member?.name,
+    serviceId: a.service_id,
+    serviceName: service?.name,
+    staffId: a.staff_id ?? null,
+    staffName: staff?.name ?? null,
+    startsAt: a.starts_at,
+    endsAt: a.ends_at,
     status: a.status,
     notes: a.notes ?? null,
   }
 }
 
 export async function getAppointments(): Promise<AppointmentDTO[]> {
-  const rows = await db.appointment.findMany({
-    include: { member: true, service: true, staff: true },
-    orderBy: { startsAt: 'asc' },
-  })
-  return rows.map(toDTO)
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(`
+      *,
+      member:members(id, name),
+      service:services(id, name),
+      staff:staff(id, name)
+    `)
+    .order('starts_at', { ascending: true })
+  if (error) throw new Error(`Failed to load appointments: ${error.message}`)
+  return (data as any[]).map((row) =>
+    toDTO(row as AppointmentRow, row.member, row.service, row.staff)
+  )
 }
 
 export async function getTodaysAppointments(): Promise<AppointmentDTO[]> {
@@ -33,12 +56,21 @@ export async function getTodaysAppointments(): Promise<AppointmentDTO[]> {
   start.setHours(0, 0, 0, 0)
   const end = new Date(now)
   end.setHours(23, 59, 59, 999)
-  const rows = await db.appointment.findMany({
-    where: { startsAt: { gte: start.toISOString(), lte: end.toISOString() } },
-    include: { member: true, service: true, staff: true },
-    orderBy: { startsAt: 'asc' },
-  })
-  return rows.map(toDTO)
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(`
+      *,
+      member:members(id, name),
+      service:services(id, name),
+      staff:staff(id, name)
+    `)
+    .gte('starts_at', start.toISOString())
+    .lte('starts_at', end.toISOString())
+    .order('starts_at', { ascending: true })
+  if (error) throw new Error(`Failed to load today's appointments: ${error.message}`)
+  return (data as any[]).map((row) =>
+    toDTO(row as AppointmentRow, row.member, row.service, row.staff)
+  )
 }
 
 export interface CreateAppointmentInput {
@@ -51,38 +83,57 @@ export interface CreateAppointmentInput {
 }
 
 export async function createAppointment(input: CreateAppointmentInput): Promise<AppointmentDTO> {
-  const service = await db.service.findUnique({ where: { id: input.serviceId } })
-  if (!service) throw new Error('Service not found')
+  const { data: service, error: sErr } = await supabase
+    .from('services')
+    .select('duration_min')
+    .eq('id', input.serviceId)
+    .single()
+  if (sErr || !service) throw new Error('Service not found')
   const start = new Date(`${input.date}T${input.time}:00`)
-  const end = new Date(start.getTime() + service.durationMin * 60000)
-  const a = await db.appointment.create({
-    data: {
-      memberId: input.memberId,
-      serviceId: input.serviceId,
-      staffId: input.staffId || null,
-      startsAt: start.toISOString(),
-      endsAt: end.toISOString(),
+  const end = new Date(start.getTime() + (service as any).duration_min * 60000)
+  const { data, error } = await supabase
+    .from('appointments')
+    .insert({
+      member_id: input.memberId,
+      service_id: input.serviceId,
+      staff_id: input.staffId || null,
+      starts_at: start.toISOString(),
+      ends_at: end.toISOString(),
       status: 'Booked',
       notes: input.notes || null,
-    },
-    include: { member: true, service: true, staff: true },
-  })
-  return toDTO(a)
+    })
+    .select(`
+      *,
+      member:members(id, name),
+      service:services(id, name),
+      staff:staff(id, name)
+    `)
+    .single()
+  if (error) throw new Error(`Failed to create appointment: ${error.message}`)
+  return toDTO(data as AppointmentRow, (data as any).member, (data as any).service, (data as any).staff)
 }
 
 export async function updateAppointmentStatus(
   id: string,
   status: string
 ): Promise<AppointmentDTO> {
-  const a = await db.appointment.update({
-    where: { id },
-    data: { status },
-    include: { member: true, service: true, staff: true },
-  })
-  return toDTO(a)
+  const { data, error } = await supabase
+    .from('appointments')
+    .update({ status })
+    .eq('id', id)
+    .select(`
+      *,
+      member:members(id, name),
+      service:services(id, name),
+      staff:staff(id, name)
+    `)
+    .single()
+  if (error) throw new Error(`Failed to update appointment: ${error.message}`)
+  return toDTO(data as AppointmentRow, (data as any).member, (data as any).service, (data as any).staff)
 }
 
 export async function deleteAppointment(id: string): Promise<{ ok: true }> {
-  await db.appointment.delete({ where: { id } })
+  const { error } = await supabase.from('appointments').delete().eq('id', id)
+  if (error) throw new Error(`Failed to delete appointment: ${error.message}`)
   return { ok: true }
 }

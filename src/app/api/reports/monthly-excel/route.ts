@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabaseServer'
 import { monthLabel } from '@/lib/dates'
 
 /**
@@ -25,23 +25,38 @@ export async function GET(req: NextRequest) {
 
   const start = new Date(y, m - 1, 1)
   const end = new Date(y, m, 0)
-  const rows = await db.dailyEntry.findMany({
-    where: {
-      entryDate: {
-        gte: start.toISOString().slice(0, 10),
-        lte: end.toISOString().slice(0, 10),
-      },
-    },
-    orderBy: [{ entryDate: 'asc' }, { createdAt: 'asc' }],
-  })
+  const { data, error } = await supabase
+    .from('daily_entries')
+    .select('*')
+    .gte('entry_date', start.toISOString().slice(0, 10))
+    .lte('entry_date', end.toISOString().slice(0, 10))
+    .order('entry_date', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  interface DailyEntryRow {
+    id: string
+    entry_date: string
+    member_code: string | null
+    member_name: string
+    phone: string | null
+    service_name: string
+    therapist_name: string | null
+    amount: number
+    payment_mode: string
+    notes: string | null
+  }
+  const rows = (data ?? []) as DailyEntryRow[]
 
   const label = monthLabel(month)
   const totalRevenue = rows.reduce((s, r) => s + r.amount, 0)
-  const totalCash = rows.filter((r) => r.paymentMode === 'Cash').reduce((s, r) => s + r.amount, 0)
-  const totalUPI = rows.filter((r) => r.paymentMode === 'UPI').reduce((s, r) => s + r.amount, 0)
-  const totalCard = rows.filter((r) => r.paymentMode === 'Card').reduce((s, r) => s + r.amount, 0)
-  const uniqueMembers = new Set(rows.filter((r) => r.memberCode).map((r) => r.memberCode)).size
-  const walkIns = rows.filter((r) => !r.memberCode).length
+  const totalCash = rows.filter((r) => r.payment_mode === 'Cash').reduce((s, r) => s + r.amount, 0)
+  const totalUPI = rows.filter((r) => r.payment_mode === 'UPI').reduce((s, r) => s + r.amount, 0)
+  const totalCard = rows.filter((r) => r.payment_mode === 'Card').reduce((s, r) => s + r.amount, 0)
+  const uniqueMembers = new Set(rows.filter((r) => r.member_code).map((r) => r.member_code)).size
+  const walkIns = rows.filter((r) => !r.member_code).length
 
   // Build an Excel-compatible HTML table.
   const esc = (v: unknown) => {
@@ -80,13 +95,13 @@ export async function GET(req: NextRequest) {
       return `
       <tr>
         <td style="${tdStyle}">${i + 1}</td>
-        <td style="${tdStyle}">${esc(r.entryDate)}</td>
-        <td style="${tdStyle}">${esc(r.memberCode ?? 'Walk-in')}</td>
-        <td style="${tdStyle}">${esc(r.memberName)}</td>
+        <td style="${tdStyle}">${esc(r.entry_date)}</td>
+        <td style="${tdStyle}">${esc(r.member_code ?? 'Walk-in')}</td>
+        <td style="${tdStyle}">${esc(r.member_name)}</td>
         <td style="${tdStyle}">${esc(r.phone ?? '')}</td>
-        <td style="${tdStyle}">${esc(r.serviceName)}</td>
-        <td style="${tdStyle}">${esc(r.therapistName ?? '')}</td>
-        <td style="${tdStyle}">${esc(r.paymentMode)}</td>
+        <td style="${tdStyle}">${esc(r.service_name)}</td>
+        <td style="${tdStyle}">${esc(r.therapist_name ?? '')}</td>
+        <td style="${tdStyle}">${esc(r.payment_mode)}</td>
         <td style="${tdNumStyle}">${r.amount.toLocaleString('en-IN')}</td>
         <td style="${tdStyle}">${esc(r.notes ?? '')}</td>
       </tr>`
