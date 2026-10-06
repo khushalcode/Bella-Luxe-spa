@@ -21,25 +21,39 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Lotus } from "./Lotus";
+import type { SpaRole } from "@/lib/supabase-server";
 
-const NAV: { key: ViewKey; label: string; icon: React.ElementType }[] = [
-  { key: "dashboard", label: "Dashboard", icon: Home },
-  { key: "daily-entries", label: "Daily Entries", icon: ClipboardList },
-  { key: "members", label: "Members", icon: Users },
-  { key: "plans", label: "Membership Plans", icon: Crown },
-  { key: "appointments", label: "Appointments", icon: CalendarCheck },
-  { key: "services", label: "Services", icon: Flower2 },
-  { key: "payments", label: "Payments", icon: CreditCard },
-  { key: "packages", label: "Packages & Offers", icon: Gift },
-  { key: "staff", label: "Staff Management", icon: UserCog },
-  { key: "attendance", label: "Staff Attendance", icon: CalendarClock },
-  { key: "reports", label: "Reports", icon: BarChart3 },
-  { key: "marketing", label: "Marketing", icon: Megaphone },
-  { key: "settings", label: "Settings", icon: Settings },
+interface NavItem {
+  key: ViewKey;
+  label: string;
+  icon: React.ElementType;
+  roles: SpaRole[]; // which roles can see this item
+}
+
+const ALL: SpaRole[] = ["admin", "manager", "receptionist", "therapist"];
+const MGMT: SpaRole[] = ["admin", "manager"];
+
+const NAV: NavItem[] = [
+  { key: "dashboard", label: "Dashboard", icon: Home, roles: ALL },
+  { key: "daily-entries", label: "Daily Entries", icon: ClipboardList, roles: ALL },
+  { key: "members", label: "Members", icon: Users, roles: ALL },
+  { key: "plans", label: "Membership Plans", icon: Crown, roles: ["admin", "manager", "receptionist", "therapist"] },
+  { key: "appointments", label: "Appointments", icon: CalendarCheck, roles: ALL },
+  { key: "services", label: "Services", icon: Flower2, roles: ALL },
+  { key: "payments", label: "Payments", icon: CreditCard, roles: ["admin", "manager", "receptionist"] },
+  { key: "packages", label: "Packages & Offers", icon: Gift, roles: ALL },
+  { key: "staff", label: "Staff Management", icon: UserCog, roles: MGMT },
+  { key: "attendance", label: "Staff Attendance", icon: CalendarClock, roles: MGMT },
+  { key: "reports", label: "Reports", icon: BarChart3, roles: MGMT },
+  { key: "marketing", label: "Marketing", icon: Megaphone, roles: MGMT },
+  { key: "settings", label: "Settings", icon: Settings, roles: ["admin"] },
 ];
 
 function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
-  const { view, setView, setBookApptOpen } = useSpa();
+  const { view, setView, setBookApptOpen, userRole } = useSpa();
+
+  // Filter nav items by the current user's role.
+  const visibleNav = NAV.filter((item) => item.roles.includes(userRole));
 
   return (
     <div
@@ -64,9 +78,16 @@ function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
         </p>
       </div>
 
+      {/* Role badge */}
+      <div className="px-5 pb-2">
+        <span className="inline-flex w-fit items-center rounded-full bg-[#8E4A63]/30 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[#F3D9DF] ring-1 ring-white/15">
+          {userRole} access
+        </span>
+      </div>
+
       {/* Nav */}
       <nav className="sidebar-scroll relative flex-1 space-y-1 overflow-y-auto px-[18px] pb-4 pt-2">
-        {NAV.map((item) => {
+        {visibleNav.map((item) => {
           const Icon = item.icon;
           const active = view === item.key;
           return (
@@ -91,6 +112,11 @@ function SidebarInner({ onNavigate }: { onNavigate?: () => void }) {
             </button>
           );
         })}
+        {visibleNav.length === 0 && (
+          <p className="px-3 py-4 text-[12px] text-white/60">
+            No navigation available for your role.
+          </p>
+        )}
       </nav>
 
       {/* Quote card over the candle / plumeria still-life */}

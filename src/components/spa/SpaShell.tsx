@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import type { SpaRole } from '@/lib/supabase-server'
 import type {
   MemberDTO,
   PlanDTO,
@@ -62,6 +63,10 @@ interface SpaContextValue extends SpaData {
   view: ViewKey
   setView: (v: ViewKey) => void
   refresh: () => void
+  // Auth
+  userRole: SpaRole
+  userEmail: string | null
+  userName: string | null
   // UI state for global dialogs/sheets
   isAddMemberOpen: boolean
   setAddMemberOpen: (b: boolean) => void
@@ -87,9 +92,15 @@ export function useSpa() {
 
 export function SpaShell({
   initial,
+  userRole = 'admin',
+  userEmail = null,
+  userName = null,
   children,
 }: {
   initial: SpaData
+  userRole?: SpaRole
+  userEmail?: string | null
+  userName?: string | null
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -118,6 +129,9 @@ export function SpaShell({
       view,
       setView,
       refresh,
+      userRole,
+      userEmail,
+      userName,
       isAddMemberOpen,
       setAddMemberOpen,
       isBookApptOpen,
@@ -135,6 +149,9 @@ export function SpaShell({
       view,
       setView,
       refresh,
+      userRole,
+      userEmail,
+      userName,
       isAddMemberOpen,
       isBookApptOpen,
       isCreateInvoiceOpen,

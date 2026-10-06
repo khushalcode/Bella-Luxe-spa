@@ -67,7 +67,7 @@ export async function getMonthlyAttendance(yearMonth?: string): Promise<StaffAtt
     .gte('date', start)
     .lte('date', end)
     .order('date', { ascending: true })
-    .order('staff', { ascending: true })
+    .order('staff_id', { ascending: true })
   if (error) throw new Error(`Failed to load monthly attendance: ${error.message}`)
   return ((data ?? []) as AttendanceRow[]).map(toDTO)
 }
@@ -83,7 +83,7 @@ export async function getAttendanceForDate(date?: string): Promise<StaffAttendan
       staff:staff(id, name)
     `)
     .eq('date', d)
-    .order('staff', { ascending: true })
+    .order('staff_id', { ascending: true })
   if (error) throw new Error(`Failed to load attendance for date: ${error.message}`)
   return ((data ?? []) as AttendanceRow[]).map(toDTO)
 }

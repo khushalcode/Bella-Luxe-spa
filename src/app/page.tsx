@@ -1,5 +1,7 @@
 import { SpaShell, type SpaData } from "@/components/spa/SpaShell";
 import { SpaLayout } from "@/components/spa/SpaLayout";
+import { LoginForm } from "@/components/spa/LoginForm";
+import { getServerUser, getServerUserRole } from "@/lib/supabase-server";
 import { getDashboardSummary } from "@/app/actions/dashboard";
 import { getMembers } from "@/app/actions/members";
 import { getPlans } from "@/app/actions/plans";
@@ -36,6 +38,16 @@ function safe<T>(label: string, p: Promise<T>, fallback: T): Promise<T> {
 }
 
 export default async function Page() {
+  // ── AUTH GATE ──────────────────────────────────────────────────────────
+  // If no logged-in user, render the login form instead of the dashboard.
+  // The LoginForm runs `signIn` and then calls `router.refresh()` so this
+  // component re-evaluates and shows the dashboard.
+  const user = await getServerUser();
+  if (!user) {
+    return <LoginForm />;
+  }
+  const role = await getServerUserRole();
+
   const [
     summary,
     members,
@@ -111,7 +123,12 @@ export default async function Page() {
   };
 
   return (
-    <SpaShell initial={initial}>
+    <SpaShell
+      initial={initial}
+      userRole={role ?? "receptionist"}
+      userEmail={user.email ?? null}
+      userName={(user.user_metadata?.full_name as string | undefined) ?? null}
+    >
       <SpaLayout />
     </SpaShell>
   );
