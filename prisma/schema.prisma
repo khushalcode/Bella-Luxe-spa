@@ -1,0 +1,173 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // To migrate to Supabase: change provider to "postgresql" and set
+  // DATABASE_URL="postgresql://<user>:<pass>@<host>:5432/<db>" in .env
+  // All other code (Prisma Client queries, schema models) stays exactly the same.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Member {
+  id           String        @id @default(cuid())
+  memberCode   String        @unique
+  name         String
+  phone        String
+  email        String?
+  gender       String        @default("Female")
+  dob          String?
+  address      String?
+  photoUrl     String?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  memberships  Membership[]
+  appointments Appointment[]
+  payments     Payment[]
+}
+
+model MembershipPlan {
+  id                String        @id @default(cuid())
+  name              String
+  price            Int           // in INR rupees
+  durationDays     Int
+  sessionsIncluded Int
+  discountPct      Int           @default(0)
+  benefits         String        // JSON string array
+  isActive         Boolean       @default(true)
+  memberships      Membership[]
+}
+
+model Membership {
+  id           String          @id @default(cuid())
+  memberId     String
+  planId       String
+  startDate    String          // ISO date
+  endDate      String          // ISO date
+  status       String          // Active | Expiring Soon | Expired (computed)
+  amountPaid   Int
+  autoRenew    Boolean         @default(false)
+  member       Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  plan         MembershipPlan  @relation(fields: [planId], references: [id])
+  payments     Payment[]
+  createdAt    DateTime        @default(now())
+}
+
+model Service {
+  id           String           @id @default(cuid())
+  name         String
+  category     String
+  durationMin  Int
+  price        Int
+  isActive    Boolean          @default(true)
+  appointments Appointment[]
+}
+
+model Staff {
+  id              String         @id @default(cuid())
+  name            String
+  role            String         // Therapist | Receptionist | Manager
+  specialization  String?
+  commissionPct   Int            @default(0)
+  perDaySalary    Int            @default(0)   // INR per working day, used for salary calc
+  workingHours    String         // JSON string
+  avatarUrl       String?
+  isActive        Boolean        @default(true)
+  appointments    Appointment[]
+  attendance      StaffAttendance[]
+}
+
+model Appointment {
+  id           String    @id @default(cuid())
+  memberId     String
+  serviceId    String
+  staffId      String?
+  startsAt     String    // ISO datetime
+  endsAt       String
+  status       String    @default("Booked") // Booked | Completed | No-show | Cancelled
+  notes        String?
+  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  service      Service   @relation(fields: [serviceId], references: [id])
+  staff        Staff?    @relation(fields: [staffId], references: [id])
+}
+
+model Payment {
+  id             String       @id @default(cuid())
+  memberId       String
+  membershipId   String?
+  appointmentId  String?
+  amount         Int
+  method         String       // UPI | Card | Cash
+  status         String       @default("Paid") // Paid | Pending | Refunded
+  invoiceNo      String       @unique
+  paidAt         DateTime     @default(now())
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  membership     Membership?  @relation(fields: [membershipId], references: [id])
+}
+
+model PackageOffer {
+  id            String    @id @default(cuid())
+  title         String
+  type          String    // Festive Offer | Bundle | Coupon
+  discountValue Int       // percent or amount
+  discountType  String    @default("percent") // percent | amount
+  validFrom     String
+  validTo       String
+  code          String
+  isActive      Boolean   @default(true)
+}
+
+model Campaign {
+  id           String    @id @default(cuid())
+  name         String
+  channel      String    // WhatsApp | SMS | Email
+  template     String
+  segment      String    // JSON string
+  scheduledAt  String?
+  status       String    @default("Draft") // Draft | Scheduled | Sent
+  createdAt    DateTime  @default(now())
+}
+
+// ---------------------------------------------------------------
+// Daily Entries / Logs
+// Records each day's customer/member walk-ins, services availed,
+// amount collected, therapist who served them, etc. Visible on the
+// dashboard and exported as an Excel sheet at month end.
+// ---------------------------------------------------------------
+model DailyEntry {
+  id            String   @id @default(cuid())
+  entryDate     String   // YYYY-MM-DD
+  memberCode    String?  // optional, blank for walk-ins
+  memberName    String
+  phone         String?
+  serviceName   String
+  therapistName String?
+  amount        Int      @default(0)
+  paymentMode   String   @default("Cash") // Cash | UPI | Card
+  notes         String?
+  createdAt     DateTime @default(now())
+}
+
+// ---------------------------------------------------------------
+// Staff Attendance
+// Per-day attendance for each staff member. Used to compute monthly
+// salary. Records older than ~60 days are auto-archived (deleted)
+// by the cleanupOldAttendance server action to keep the table lean.
+// ---------------------------------------------------------------
+model StaffAttendance {
+  id         String   @id @default(cuid())
+  staffId    String
+  date       String   // YYYY-MM-DD
+  status     String   // Present | Half-Day | Absent | Leave | Holiday
+  checkIn    String?  // HH:MM
+  checkOut   String?  // HH:MM
+  notes      String?
+  createdAt  DateTime @default(now())
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date])
+}
