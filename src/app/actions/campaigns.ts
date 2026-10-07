@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase, toISO } from '@/lib/supabaseServer'
+import { getSupabase, toISO } from '@/lib/supabaseServer'
 import type { CampaignDTO } from '@/lib/types'
 
 interface CampaignRow {
@@ -28,7 +28,8 @@ function toDTO(r: CampaignRow): CampaignDTO {
 }
 
 export async function getCampaigns(): Promise<CampaignDTO[]> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('campaigns')
     .select('*')
     .order('created_at', { ascending: false })
@@ -46,7 +47,8 @@ export interface CreateCampaignInput {
 }
 
 export async function createCampaign(input: CreateCampaignInput): Promise<CampaignDTO> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('campaigns')
     .insert({
       name: input.name,
@@ -63,7 +65,8 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Campai
 }
 
 export async function sendCampaign(id: string): Promise<{ ok: true }> {
-  const { error } = await supabase
+  const sb = await getSupabase()
+  const { error } = await sb
     .from('campaigns')
     .update({ status: 'Sent' })
     .eq('id', id)
@@ -72,7 +75,8 @@ export async function sendCampaign(id: string): Promise<{ ok: true }> {
 }
 
 export async function deleteCampaign(id: string): Promise<{ ok: true }> {
-  const { error } = await supabase.from('campaigns').delete().eq('id', id)
+  const sb = await getSupabase()
+  const { error } = await sb.from('campaigns').delete().eq('id', id)
   if (error) throw new Error(`Failed to delete campaign: ${error.message}`)
   return { ok: true }
 }

@@ -11,6 +11,7 @@ import { PaymentsView } from "./views/PaymentsView";
 import { PackagesView } from "./views/PackagesView";
 import { StaffView } from "./views/StaffView";
 import { AttendanceView } from "./views/AttendanceView";
+import { SalaryView } from "./views/SalaryView";
 import { ReportsView } from "./views/ReportsView";
 import { MarketingView } from "./views/MarketingView";
 import { SettingsView } from "./views/SettingsView";
@@ -26,6 +27,7 @@ const VIEW_MAP: Record<ViewKey, React.ComponentType> = {
   packages: PackagesView,
   staff: StaffView,
   attendance: AttendanceView,
+  salary: SalaryView,
   reports: ReportsView,
   marketing: MarketingView,
   settings: SettingsView,

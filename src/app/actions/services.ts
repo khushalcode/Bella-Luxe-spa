@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase, toISO } from '@/lib/supabaseServer'
+import { getSupabase, toISO } from '@/lib/supabaseServer'
 import type { ServiceDTO } from '@/lib/types'
 
 interface ServiceRow {
@@ -25,7 +25,8 @@ function toDTO(r: ServiceRow): ServiceDTO {
 }
 
 export async function getServices(): Promise<ServiceDTO[]> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('services')
     .select('*')
     .order('category', { ascending: true })
@@ -42,7 +43,8 @@ export interface CreateServiceInput {
 }
 
 export async function createService(input: CreateServiceInput): Promise<ServiceDTO> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('services')
     .insert({
       name: input.name,
@@ -58,6 +60,7 @@ export async function createService(input: CreateServiceInput): Promise<ServiceD
 }
 
 export async function updateService(id: string, patch: Partial<CreateServiceInput>): Promise<ServiceDTO> {
+  const sb = await getSupabase()
   const update: Record<string, any> = {}
   if (patch.name !== undefined) update.name = patch.name
   if (patch.category !== undefined) update.category = patch.category
@@ -65,7 +68,7 @@ export async function updateService(id: string, patch: Partial<CreateServiceInpu
   if (patch.price !== undefined) update.price = patch.price
   if (patch.isActive !== undefined) update.is_active = patch.isActive
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('services')
     .update(update)
     .eq('id', id)
@@ -76,14 +79,15 @@ export async function updateService(id: string, patch: Partial<CreateServiceInpu
 }
 
 export async function toggleService(id: string): Promise<{ ok: true; isActive: boolean }> {
-  const { data: cur, error: e1 } = await supabase
+  const sb = await getSupabase()
+  const { data: cur, error: e1 } = await sb
     .from('services')
     .select('is_active')
     .eq('id', id)
     .single()
   if (e1 || !cur) throw new Error('Service not found')
   const next = !(cur as any).is_active
-  const { error: e2 } = await supabase
+  const { error: e2 } = await sb
     .from('services')
     .update({ is_active: next })
     .eq('id', id)
@@ -92,7 +96,8 @@ export async function toggleService(id: string): Promise<{ ok: true; isActive: b
 }
 
 export async function deleteService(id: string): Promise<{ ok: true }> {
-  const { error } = await supabase.from('services').delete().eq('id', id)
+  const sb = await getSupabase()
+  const { error } = await sb.from('services').delete().eq('id', id)
   if (error) throw new Error(`Failed to delete service: ${error.message}`)
   return { ok: true }
 }

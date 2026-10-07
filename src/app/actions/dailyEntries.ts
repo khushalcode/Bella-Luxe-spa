@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase, toISO } from '@/lib/supabaseServer'
+import { getSupabase, toISO } from '@/lib/supabaseServer'
 import type { DailyEntryDTO, MonthlyReportMeta } from '@/lib/types'
 import {
   monthLabel,
@@ -43,7 +43,8 @@ export async function getDailyEntries(opts?: {
   date?: string         // YYYY-MM-DD
   yearMonth?: string    // YYYY-MM
 }): Promise<DailyEntryDTO[]> {
-  let q = supabase.from('daily_entries').select('*')
+  const sb = await getSupabase()
+  let q = sb.from('daily_entries').select('*')
   if (opts?.date) {
     q = q.eq('entry_date', opts.date)
   } else if (opts?.yearMonth) {
@@ -71,7 +72,8 @@ export interface CreateDailyEntryInput {
 }
 
 export async function createDailyEntry(input: CreateDailyEntryInput): Promise<DailyEntryDTO> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('daily_entries')
     .insert({
       entry_date: input.entryDate,
@@ -105,7 +107,7 @@ export async function updateDailyEntry(
   if (patch.paymentMode !== undefined) update.payment_mode = patch.paymentMode
   if (patch.notes !== undefined) update.notes = patch.notes
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('daily_entries')
     .update(update)
     .eq('id', id)
@@ -116,14 +118,16 @@ export async function updateDailyEntry(
 }
 
 export async function deleteDailyEntry(id: string): Promise<{ ok: true }> {
-  const { error } = await supabase.from('daily_entries').delete().eq('id', id)
+  const sb = await getSupabase()
+  const { error } = await sb.from('daily_entries').delete().eq('id', id)
   if (error) throw new Error(`Failed to delete daily entry: ${error.message}`)
   return { ok: true }
 }
 
 /** Returns a list of available monthly reports (months with at least one entry). */
 export async function getMonthlyReports(): Promise<MonthlyReportMeta[]> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('daily_entries')
     .select('entry_date, amount')
   if (error) throw new Error(`Failed to load monthly reports: ${error.message}`)
@@ -152,10 +156,11 @@ export async function getMonthlyEntries(yearMonth: string): Promise<{
   count: number
   label: string
 }> {
+  const sb = await getSupabase()
   const [y, m] = yearMonth.split('-').map((n) => parseInt(n, 10))
   const start = new Date(y, m - 1, 1).toISOString().slice(0, 10)
   const end = new Date(y, m, 0).toISOString().slice(0, 10)
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('daily_entries')
     .select('*')
     .gte('entry_date', start)
@@ -178,8 +183,9 @@ export async function getTodayEntriesSummary(): Promise<{
   count: number
   revenue: number
 }> {
+  const sb = await getSupabase()
   const today = new Date().toISOString().slice(0, 10)
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('daily_entries')
     .select('*')
     .eq('entry_date', today)
@@ -195,6 +201,7 @@ export async function getTodayEntriesSummary(): Promise<{
 
 /** Returns the meta for the previous month (for the "ready to download" dashboard banner). */
 export async function getPreviousMonthReportMeta(): Promise<MonthlyReportMeta | null> {
+  const sb = await getSupabase()
   const ym = previousYearMonth()
   const reports = await getMonthlyReports()
   return reports.find((r) => r.yearMonth === ym) ?? null

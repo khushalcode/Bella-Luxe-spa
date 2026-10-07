@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase } from '@/lib/supabaseServer'
+import { getSupabase } from '@/lib/supabaseServer'
 import type { PlanDTO } from '@/lib/types'
 
 interface PlanRow {
@@ -45,8 +45,9 @@ function toDTO(p: PlanRow, memberCount = 0, revenue = 0): PlanDTO {
 }
 
 export async function getPlans(): Promise<PlanDTO[]> {
+  const sb = await getSupabase()
   // Load all plans
-  const { data: plans, error } = await supabase
+  const { data: plans, error } = await sb
     .from('membership_plans')
     .select('*')
     .order('price', { ascending: false })
@@ -54,13 +55,13 @@ export async function getPlans(): Promise<PlanDTO[]> {
   if (!plans || plans.length === 0) return []
 
   // Load all memberships (just plan_id)
-  const { data: memberships, error: mErr } = await supabase
+  const { data: memberships, error: mErr } = await sb
     .from('memberships')
     .select('id, plan_id')
   if (mErr) throw new Error(`Failed to load memberships: ${mErr.message}`)
 
   // Load all paid payments (membership_id, amount)
-  const { data: payments, error: pErr } = await supabase
+  const { data: payments, error: pErr } = await sb
     .from('payments')
     .select('membership_id, amount')
     .eq('status', 'Paid')
@@ -89,7 +90,8 @@ export interface CreatePlanInput {
 }
 
 export async function createPlan(input: CreatePlanInput): Promise<PlanDTO> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('membership_plans')
     .insert({
       name: input.name,
@@ -107,6 +109,7 @@ export async function createPlan(input: CreatePlanInput): Promise<PlanDTO> {
 }
 
 export async function updatePlan(id: string, patch: Partial<CreatePlanInput>): Promise<PlanDTO> {
+  const sb = await getSupabase()
   const update: Record<string, any> = {}
   if (patch.name !== undefined) update.name = patch.name
   if (patch.price !== undefined) update.price = patch.price
@@ -116,7 +119,7 @@ export async function updatePlan(id: string, patch: Partial<CreatePlanInput>): P
   if (patch.benefits !== undefined) update.benefits = patch.benefits
   if (patch.isActive !== undefined) update.is_active = patch.isActive
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('membership_plans')
     .update(update)
     .eq('id', id)
@@ -127,14 +130,15 @@ export async function updatePlan(id: string, patch: Partial<CreatePlanInput>): P
 }
 
 export async function togglePlan(id: string): Promise<{ ok: true; isActive: boolean }> {
-  const { data: cur, error: e1 } = await supabase
+  const sb = await getSupabase()
+  const { data: cur, error: e1 } = await sb
     .from('membership_plans')
     .select('is_active')
     .eq('id', id)
     .single()
   if (e1 || !cur) throw new Error('Plan not found')
   const next = !(cur as any).is_active
-  const { error: e2 } = await supabase
+  const { error: e2 } = await sb
     .from('membership_plans')
     .update({ is_active: next })
     .eq('id', id)
@@ -143,7 +147,8 @@ export async function togglePlan(id: string): Promise<{ ok: true; isActive: bool
 }
 
 export async function deletePlan(id: string): Promise<{ ok: true }> {
-  const { error } = await supabase.from('membership_plans').delete().eq('id', id)
+  const sb = await getSupabase()
+  const { error } = await sb.from('membership_plans').delete().eq('id', id)
   if (error) throw new Error(`Failed to delete plan: ${error.message}`)
   return { ok: true }
 }

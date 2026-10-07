@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabaseServer'
+import { getSupabase } from '@/lib/supabaseServer'
 import { monthLabel } from '@/lib/dates'
 
 /**
@@ -12,6 +12,7 @@ import { monthLabel } from '@/lib/dates'
  * reads without warnings.
  */
 export async function GET(req: NextRequest) {
+  const sb = await getSupabase()
   const url = new URL(req.url)
   const month = url.searchParams.get('month')
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   const start = new Date(y, m - 1, 1)
   const end = new Date(y, m, 0)
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('daily_entries')
     .select('*')
     .gte('entry_date', start.toISOString().slice(0, 10))

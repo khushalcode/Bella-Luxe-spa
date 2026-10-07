@@ -1,4 +1,4 @@
-import { Lotus } from "./Lotus";
+import Image from "next/image";
 
 export function Footer() {
   return (
@@ -16,7 +16,13 @@ export function Footer() {
             More than a spa, a better you
           </span>
           <span className="hidden h-4 w-px bg-[#9a8580]/40 md:block" />
-          <Lotus className="hidden h-[18px] w-6 md:block" strokeWidth={1.5} />
+          <Image
+            src="/logo.png"
+            alt=""
+            width={18}
+            height={18}
+            className="hidden h-[18px] w-[18px] rounded-full object-cover md:block"
+          />
         </div>
       </div>
     </footer>

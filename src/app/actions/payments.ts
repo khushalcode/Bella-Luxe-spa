@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase, toISO } from '@/lib/supabaseServer'
+import { getSupabase, toISO } from '@/lib/supabaseServer'
 import type { PaymentDTO } from '@/lib/types'
 
 interface PaymentRow {
@@ -41,7 +41,8 @@ function toDTO(p: PaymentRow): PaymentDTO {
 }
 
 export async function getPayments(): Promise<PaymentDTO[]> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('payments')
     .select(`
       *,
@@ -64,13 +65,13 @@ export async function createPayment(
   input: CreatePaymentInput
 ): Promise<PaymentDTO & { invoiceNo: string }> {
   // Count existing payments to generate the next invoice number
-  const { count, error: cErr } = await supabase
+  const { count, error: cErr } = await sb
     .from('payments')
     .select('*', { count: 'exact', head: true })
   if (cErr) throw new Error(`Failed to count payments: ${cErr.message}`)
   const invoiceNo = `INV-2026-${String(2001 + (count ?? 0)).padStart(4, '0')}`
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('payments')
     .insert({
       member_id: input.memberId,
@@ -90,7 +91,8 @@ export async function createPayment(
 }
 
 export async function refundPayment(id: string): Promise<PaymentDTO> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('payments')
     .update({ status: 'Refunded' })
     .eq('id', id)

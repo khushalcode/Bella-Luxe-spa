@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase } from '@/lib/supabaseServer'
+import { getSupabase } from '@/lib/supabaseServer'
 import type { PackageDTO } from '@/lib/types'
 
 interface PackageRow {
@@ -31,7 +31,8 @@ function toDTO(r: PackageRow): PackageDTO {
 }
 
 export async function getPackages(): Promise<PackageDTO[]> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('package_offers')
     .select('*')
     .order('valid_from', { ascending: false })
@@ -51,7 +52,8 @@ export interface CreatePackageInput {
 }
 
 export async function createPackage(input: CreatePackageInput): Promise<PackageDTO> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('package_offers')
     .insert({
       title: input.title,
@@ -70,14 +72,15 @@ export async function createPackage(input: CreatePackageInput): Promise<PackageD
 }
 
 export async function togglePackage(id: string): Promise<{ ok: true; isActive: boolean }> {
-  const { data: cur, error: e1 } = await supabase
+  const sb = await getSupabase()
+  const { data: cur, error: e1 } = await sb
     .from('package_offers')
     .select('is_active')
     .eq('id', id)
     .single()
   if (e1 || !cur) throw new Error('Package not found')
   const next = !(cur as any).is_active
-  const { error: e2 } = await supabase
+  const { error: e2 } = await sb
     .from('package_offers')
     .update({ is_active: next })
     .eq('id', id)
@@ -86,7 +89,8 @@ export async function togglePackage(id: string): Promise<{ ok: true; isActive: b
 }
 
 export async function deletePackage(id: string): Promise<{ ok: true }> {
-  const { error } = await supabase.from('package_offers').delete().eq('id', id)
+  const sb = await getSupabase()
+  const { error } = await sb.from('package_offers').delete().eq('id', id)
   if (error) throw new Error(`Failed to delete package: ${error.message}`)
   return { ok: true }
 }

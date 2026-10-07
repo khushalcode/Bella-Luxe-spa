@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabaseServer'
+import { getSupabase } from '@/lib/supabaseServer'
 import { computeStatus } from '@/lib/status'
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const sb = await getSupabase()
   const { id } = await params
 
   // Load the member
-  const { data: m, error: mErr } = await supabase
+  const { data: m, error: mErr } = await sb
     .from('members')
     .select('*')
     .eq('id', id)
@@ -20,7 +21,7 @@ export async function GET(
   const member = m as any
 
   // Load memberships + plans
-  const { data: membershipsRaw } = await supabase
+  const { data: membershipsRaw } = await sb
     .from('memberships')
     .select(`
       *,
@@ -30,7 +31,7 @@ export async function GET(
     .order('start_date', { ascending: false })
 
   // Load appointments + services + staff
-  const { data: appointmentsRaw } = await supabase
+  const { data: appointmentsRaw } = await sb
     .from('appointments')
     .select(`
       *,
@@ -41,7 +42,7 @@ export async function GET(
     .order('starts_at', { ascending: false })
 
   // Load payments
-  const { data: paymentsRaw } = await supabase
+  const { data: paymentsRaw } = await sb
     .from('payments')
     .select('*')
     .eq('member_id', id)

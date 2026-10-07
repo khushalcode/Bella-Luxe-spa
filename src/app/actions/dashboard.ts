@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase, toISO } from '@/lib/supabaseServer'
+import { getSupabase, toISO } from '@/lib/supabaseServer'
 import type { DashboardSummary, MemberDTO, MembershipDTO, AppointmentDTO } from '@/lib/types'
 import {
   getTodayEntriesSummary,
@@ -113,6 +113,7 @@ function aptToDTO(a: AppointmentRow): AppointmentDTO {
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const sb = await getSupabase()
   const now = new Date()
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -134,26 +135,26 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     todaysApptsRaw,
     allPlans,
   ] = await Promise.all([
-    supabase.from('members').select('*', { count: 'exact', head: true }),
-    supabase.from('memberships').select('status, member_id, end_date'),
-    supabase.from('payments').select('amount, paid_at').eq('status', 'Paid'),
-    supabase
+    sb.from('members').select('*', { count: 'exact', head: true }),
+    sb.from('memberships').select('status, member_id, end_date'),
+    sb.from('payments').select('amount, paid_at').eq('status', 'Paid'),
+    sb
       .from('payments')
       .select('amount')
       .eq('status', 'Paid')
       .gte('paid_at', thisMonthStart.toISOString())
       .lte('paid_at', now.toISOString()),
-    supabase
+    sb
       .from('payments')
       .select('amount')
       .eq('status', 'Paid')
       .gte('paid_at', lastMonthStart.toISOString())
       .lte('paid_at', lastMonthEnd.toISOString()),
-    supabase
+    sb
       .from('members')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', thisMonthStart.toISOString()),
-    supabase
+    sb
       .from('members')
       .select(`
         *,
@@ -164,7 +165,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       `)
       .order('created_at', { ascending: false })
       .limit(6),
-    supabase
+    sb
       .from('appointments')
       .select(`
         *,
@@ -175,7 +176,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       .gte('starts_at', todayStart.toISOString())
       .lte('starts_at', todayEnd.toISOString())
       .order('starts_at', { ascending: true }),
-    supabase.from('membership_plans').select('id, name, price'),
+    sb.from('membership_plans').select('id, name, price'),
   ])
 
   if (membersCount.error) throw new Error(`Failed to count members: ${membersCount.error.message}`)
@@ -204,7 +205,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const recentMemberIds = ((recentMembers.data ?? []) as MemberRow[]).map((m) => m.id)
   let appointmentCountsByMember: Record<string, number> = {}
   if (recentMemberIds.length > 0) {
-    const { data: apptsForRecent, error: aErr } = await supabase
+    const { data: apptsForRecent, error: aErr } = await sb
       .from('appointments')
       .select('member_id')
       .in('member_id', recentMemberIds)
@@ -224,7 +225,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   // Popular plans — count memberships per plan + sum paid payments
   const planList = (allPlans.data ?? []) as { id: string; name: string; price: number }[]
   // Build a map of membership_id -> plan_id from allMemberships (we only have status, member_id, end_date — so we need to fetch full memberships)
-  const { data: allFullMemberships, error: mErr } = await supabase
+  const { data: allFullMemberships, error: mErr } = await sb
     .from('memberships')
     .select('id, plan_id')
   if (mErr) throw new Error(`Failed to load full memberships: ${mErr.message}`)
@@ -232,7 +233,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   for (const m of (allFullMemberships ?? []) as { id: string; plan_id: string }[]) {
     planIdByMembershipId.set(m.id, m.plan_id)
   }
-  const { data: allPaidPayments, error: pErr } = await supabase
+  const { data: allPaidPayments, error: pErr } = await sb
     .from('payments')
     .select('membership_id, amount')
     .eq('status', 'Paid')
@@ -253,7 +254,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     .sort((a, b) => b.memberCount - a.memberCount)
 
   // Upcoming expirations
-  const { data: expAptsRaw, error: eErr } = await supabase
+  const { data: expAptsRaw, error: eErr } = await sb
     .from('memberships')
     .select(`
       *,

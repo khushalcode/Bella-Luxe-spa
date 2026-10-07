@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase } from '@/lib/supabaseServer'
+import { getSupabase } from '@/lib/supabaseServer'
 import type { StaffDTO } from '@/lib/types'
 
 interface StaffRow {
@@ -42,7 +42,8 @@ function toDTO(s: StaffRow): StaffDTO {
 }
 
 export async function getStaff(): Promise<StaffDTO[]> {
-  const { data, error } = await supabase
+  const sb = await getSupabase()
+  const { data, error } = await sb
     .from('staff')
     .select('*')
     .order('name', { ascending: true })
@@ -62,11 +63,12 @@ export interface CreateStaffInput {
 }
 
 export async function createStaff(input: CreateStaffInput): Promise<StaffDTO> {
+  const sb = await getSupabase()
   const workingHours = {
     start: input.startHour ?? '09:00',
     end: input.endHour ?? '18:00',
   }
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('staff')
     .insert({
       name: input.name,
@@ -95,6 +97,7 @@ export interface UpdateStaffInput {
 }
 
 export async function updateStaff(id: string, patch: UpdateStaffInput): Promise<StaffDTO> {
+  const sb = await getSupabase()
   const update: Record<string, any> = {}
   if (patch.name !== undefined) update.name = patch.name
   if (patch.role !== undefined) update.role = patch.role
@@ -103,7 +106,7 @@ export async function updateStaff(id: string, patch: UpdateStaffInput): Promise<
   if (patch.perDaySalary !== undefined) update.per_day_salary = patch.perDaySalary
   if (patch.isActive !== undefined) update.is_active = patch.isActive
   if (patch.startHour !== undefined || patch.endHour !== undefined) {
-    const { data: existing } = await supabase
+    const { data: existing } = await sb
       .from('staff')
       .select('working_hours')
       .eq('id', id)
@@ -115,7 +118,7 @@ export async function updateStaff(id: string, patch: UpdateStaffInput): Promise<
     }
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('staff')
     .update(update)
     .eq('id', id)
@@ -126,14 +129,15 @@ export async function updateStaff(id: string, patch: UpdateStaffInput): Promise<
 }
 
 export async function toggleStaff(id: string): Promise<{ ok: true; isActive: boolean }> {
-  const { data: cur, error: e1 } = await supabase
+  const sb = await getSupabase()
+  const { data: cur, error: e1 } = await sb
     .from('staff')
     .select('is_active')
     .eq('id', id)
     .single()
   if (e1 || !cur) throw new Error('Staff not found')
   const next = !(cur as any).is_active
-  const { error: e2 } = await supabase
+  const { error: e2 } = await sb
     .from('staff')
     .update({ is_active: next })
     .eq('id', id)
@@ -142,7 +146,8 @@ export async function toggleStaff(id: string): Promise<{ ok: true; isActive: boo
 }
 
 export async function deleteStaff(id: string): Promise<{ ok: true }> {
-  const { error } = await supabase.from('staff').delete().eq('id', id)
+  const sb = await getSupabase()
+  const { error } = await sb.from('staff').delete().eq('id', id)
   if (error) throw new Error(`Failed to delete staff: ${error.message}`)
   return { ok: true }
 }

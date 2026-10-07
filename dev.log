@@ -1,13 +1,42 @@
 ▲ Next.js 16.3.8 (Turbopack)
 - Local:         http://localhost:3000
-- Network:       http://10.117.205.67:3000
+- Network:       http://10.162.62.67:3000
 - Environments: .env
 ✓ Ready in 12.1s
-✓ Running next.config.ts took 1380ms
-⚠ Slow filesystem detected. The benchmark took 703ms. If /Users/mac/Downloads/Bella-Luxe-spa-main/.next/dev is a network drive, consider moving it to a local folder.
+✓ Running next.config.ts took 2.3s
+⚠ Slow filesystem detected. The benchmark took 549ms. If /Users/mac/Downloads/Bella-Luxe-spa-main/.next/dev is a network drive, consider moving it to a local folder.
 See more: https://nextjs.org/docs/app/guides/local-development
 
 ○ Compiling / ...
-✓ Finished writing to filesystem cache in 26.6s
-✓ Finished writing to filesystem cache in 12.1s
- GET / 200 in 4.7min (next.js: 3.5min, application-code: 69s)
+⚠️  Node.js 20 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 22 or later. For more information, visit: https://github.com/orgs/supabase/discussions/45715
+[Supabase] No SUPABASE_SERVICE_ROLE_KEY set — falling back to admin login mode.
+  Server actions will authenticate as admin@bellaluxe.com via Supabase Auth.
+  For production, set SUPABASE_SERVICE_ROLE_KEY in .env for best performance.
+ GET / 200 in 55s (next.js: 14.8s, application-code: 41s)
+ POST / 200 in 28.9s (next.js: 3.1s, application-code: 25.8s)
+  └─ ƒ togglePlan("3f8ca08a-0f6b-4d7d-8e4c-bf7258408c51") in 8340ms src/app/actions/plans.ts
+ POST / 200 in 8.3s (next.js: 4.5s, application-code: 3.8s)
+  └─ ƒ togglePlan("3f8ca08a-0f6b-4d7d-8e4c-bf7258408c51") in 2599ms src/app/actions/plans.ts
+ POST / 200 in 23.9s (next.js: 112ms, application-code: 23.7s)
+  └─ ƒ togglePlan("3f8ca08a-0f6b-4d7d-8e4c-bf7258408c51") in 21159ms src/app/actions/plans.ts
+ GET / 200 in 48s (next.js: 1089ms, application-code: 47s)
+ GET / 200 in 50s (next.js: 665ms, application-code: 49s)
+ GET / 200 in 31.9s (next.js: 258ms, application-code: 31.7s)
+ POST / 200 in 2.6s (next.js: 366ms, application-code: 2.3s)
+  └─ ƒ updateStaff("602ac57e-a239-4b0e-b580-b8dcd425c6bd", {"commissionPct":0,"endHour":"17:00","isActive":true,"...":"5 items not stringified"}) in 2067ms src/app/actions/staff.ts
+ POST / 200 in 1568ms (next.js: 37ms, application-code: 1531ms)
+  └─ ƒ updateStaff("602ac57e-a239-4b0e-b580-b8dcd425c6bd", {"commissionPct":0,"endHour":"17:00","isActive":true,"...":"5 items not stringified"}) in 1217ms src/app/actions/staff.ts
+ GET / 200 in 31.5s (next.js: 39ms, application-code: 31.5s)
+ POST / 200 in 3.4s (next.js: 33ms, application-code: 3.3s)
+  └─ ƒ toggleStaff("602ac57e-a239-4b0e-b580-b8dcd425c6bd") in 3274ms src/app/actions/staff.ts
+ GET / 200 in 60s (next.js: 386ms, application-code: 59s)
+ GET / 200 in 37.0s (next.js: 3.2s, application-code: 33.9s)
+ GET / 200 in 47s (next.js: 46ms, application-code: 47s)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '3320718923'
+}
+ POST / 200 in 5.7s (next.js: 1632ms, application-code: 4.0s)
+  └─ ƒ toggleStaff("602ac57e-a239-4b0e-b580-b8dcd425c6bd") in 3186ms src/app/actions/staff.ts
+ GET / 200 in 80s (next.js: 88ms, application-code: 80s)
+ GET / 200 in 67s (next.js: 110ms, application-code: 66s)

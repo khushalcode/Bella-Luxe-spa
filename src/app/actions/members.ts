@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase, toISO } from '@/lib/supabaseServer'
+import { getSupabase, toISO } from '@/lib/supabaseServer'
 import { computeStatus } from '@/lib/status'
 import type { MemberDTO } from '@/lib/types'
 
@@ -70,8 +70,9 @@ function toDTO(
 }
 
 export async function getMembers(): Promise<MemberDTO[]> {
+  const sb = await getSupabase()
   // Load all members
-  const { data: members, error: mErr } = await supabase
+  const { data: members, error: mErr } = await sb
     .from('members')
     .select('*')
     .order('created_at', { ascending: true })
@@ -79,7 +80,7 @@ export async function getMembers(): Promise<MemberDTO[]> {
   if (!members || members.length === 0) return []
 
   // Load all memberships with their plan
-  const { data: memberships, error: msErr } = await supabase
+  const { data: memberships, error: msErr } = await sb
     .from('memberships')
     .select(`
       *,
@@ -88,7 +89,7 @@ export async function getMembers(): Promise<MemberDTO[]> {
   if (msErr) throw new Error(`Failed to load memberships: ${msErr.message}`)
 
   // Count appointments per member (just need member_id)
-  const { data: appts, error: aErr } = await supabase
+  const { data: appts, error: aErr } = await sb
     .from('appointments')
     .select('id, member_id')
   if (aErr) throw new Error(`Failed to load appointments: ${aErr.message}`)
@@ -101,7 +102,8 @@ export async function getMembers(): Promise<MemberDTO[]> {
 }
 
 export async function getMember(id: string): Promise<MemberDTO | null> {
-  const { data: m, error } = await supabase
+  const sb = await getSupabase()
+  const { data: m, error } = await sb
     .from('members')
     .select('*')
     .eq('id', id)
@@ -109,7 +111,7 @@ export async function getMember(id: string): Promise<MemberDTO | null> {
   if (error || !m) return null
   const member = m as MemberRow
 
-  const { data: memberships } = await supabase
+  const { data: memberships } = await sb
     .from('memberships')
     .select(`
       *,
@@ -118,7 +120,7 @@ export async function getMember(id: string): Promise<MemberDTO | null> {
     .eq('member_id', id)
     .order('start_date', { ascending: false })
 
-  const { count } = await supabase
+  const { count } = await sb
     .from('appointments')
     .select('*', { count: 'exact', head: true })
     .eq('member_id', id)
@@ -129,7 +131,8 @@ export async function getMember(id: string): Promise<MemberDTO | null> {
 /** Returns a member with their full memberships, payments, and appointments
  * — used by the profile sheet (which calls /api/members/[id]). */
 export async function getMemberFull(id: string) {
-  const { data: m, error } = await supabase
+  const sb = await getSupabase()
+  const { data: m, error } = await sb
     .from('members')
     .select('*')
     .eq('id', id)
@@ -137,7 +140,7 @@ export async function getMemberFull(id: string) {
   if (error || !m) return null
   const member = m as MemberRow
 
-  const { data: memberships } = await supabase
+  const { data: memberships } = await sb
     .from('memberships')
     .select(`
       *,
@@ -146,7 +149,7 @@ export async function getMemberFull(id: string) {
     .eq('member_id', id)
     .order('start_date', { ascending: false })
 
-  const { data: appointments } = await supabase
+  const { data: appointments } = await sb
     .from('appointments')
     .select(`
       *,
@@ -156,7 +159,7 @@ export async function getMemberFull(id: string) {
     .eq('member_id', id)
     .order('starts_at', { ascending: false })
 
-  const { data: payments } = await supabase
+  const { data: payments } = await sb
     .from('payments')
     .select('*')
     .eq('member_id', id)
@@ -179,8 +182,9 @@ export interface CreateMemberInput {
 }
 
 export async function createMember(input: CreateMemberInput): Promise<MemberDTO> {
+  const sb = await getSupabase()
   // 1. Load the plan to get durationDays + price
-  const { data: plan, error: pErr } = await supabase
+  const { data: plan, error: pErr } = await sb
     .from('membership_plans')
     .select('*')
     .eq('id', input.planId)
@@ -189,7 +193,7 @@ export async function createMember(input: CreateMemberInput): Promise<MemberDTO>
   const planRow = plan as { id: string; name: string; price: number; duration_days: number }
 
   // 2. Count existing members to generate the next member code
-  const { count: memberCount } = await supabase
+  const { count: memberCount } = await sb
     .from('members')
     .select('*', { count: 'exact', head: true })
   const memberCode = `BLM-${String(100 + (memberCount ?? 0) + 1).padStart(3, '0')}`
@@ -200,7 +204,7 @@ export async function createMember(input: CreateMemberInput): Promise<MemberDTO>
   const status = computeStatus(end.toISOString().slice(0, 10))
 
   // 4. Insert the member
-  const { data: member, error: mErr } = await supabase
+  const { data: member, error: mErr } = await sb
     .from('members')
     .insert({
       member_code: memberCode,
@@ -218,7 +222,7 @@ export async function createMember(input: CreateMemberInput): Promise<MemberDTO>
   const memberRow = member as MemberRow
 
   // 5. Insert the membership
-  const { data: membership, error: msErr } = await supabase
+  const { data: membership, error: msErr } = await sb
     .from('memberships')
     .insert({
       member_id: memberRow.id,
@@ -235,11 +239,11 @@ export async function createMember(input: CreateMemberInput): Promise<MemberDTO>
   const membershipRow = membership as { id: string }
 
   // 6. Insert the payment with auto-generated invoice number
-  const { count: payCount } = await supabase
+  const { count: payCount } = await sb
     .from('payments')
     .select('*', { count: 'exact', head: true })
   const invoiceNo = `INV-2026-${String(2001 + (payCount ?? 0)).padStart(4, '0')}`
-  const { error: payErr } = await supabase
+  const { error: payErr } = await sb
     .from('payments')
     .insert({
       member_id: memberRow.id,
@@ -288,7 +292,7 @@ export async function updateMember(
   if (patch.address !== undefined) update.address = patch.address
   if (patch.notes !== undefined) update.notes = patch.notes
 
-  const { data: m, error } = await supabase
+  const { data: m, error } = await sb
     .from('members')
     .update(update)
     .eq('id', id)
@@ -297,7 +301,7 @@ export async function updateMember(
   if (error) throw new Error(`Failed to update member: ${error.message}`)
   const member = m as MemberRow
 
-  const { data: memberships } = await supabase
+  const { data: memberships } = await sb
     .from('memberships')
     .select(`
       *,
@@ -305,7 +309,7 @@ export async function updateMember(
     `)
     .eq('member_id', id)
 
-  const { count } = await supabase
+  const { count } = await sb
     .from('appointments')
     .select('*', { count: 'exact', head: true })
     .eq('member_id', id)
@@ -314,7 +318,8 @@ export async function updateMember(
 }
 
 export async function deleteMember(id: string): Promise<{ ok: true }> {
-  const { error } = await supabase.from('members').delete().eq('id', id)
+  const sb = await getSupabase()
+  const { error } = await sb.from('members').delete().eq('id', id)
   if (error) throw new Error(`Failed to delete member: ${error.message}`)
   return { ok: true }
 }
@@ -326,7 +331,7 @@ export async function renewMembership(
   autoRenew = false
 ): Promise<{ invoiceNo: string; membershipId: string }> {
   // 1. Load the plan
-  const { data: plan, error: pErr } = await supabase
+  const { data: plan, error: pErr } = await sb
     .from('membership_plans')
     .select('*')
     .eq('id', planId)
@@ -340,7 +345,7 @@ export async function renewMembership(
   const status = computeStatus(end.toISOString().slice(0, 10))
 
   // 3. Insert the new membership
-  const { data: membership, error: msErr } = await supabase
+  const { data: membership, error: msErr } = await sb
     .from('memberships')
     .insert({
       member_id: memberId,
@@ -357,11 +362,11 @@ export async function renewMembership(
   const membershipRow = membership as { id: string }
 
   // 4. Insert the payment
-  const { count: payCount } = await supabase
+  const { count: payCount } = await sb
     .from('payments')
     .select('*', { count: 'exact', head: true })
   const invoiceNo = `INV-2026-${String(2001 + (payCount ?? 0)).padStart(4, '0')}`
-  const { error: payErr } = await supabase
+  const { error: payErr } = await sb
     .from('payments')
     .insert({
       member_id: memberId,
@@ -377,7 +382,8 @@ export async function renewMembership(
 }
 
 export async function sendReminder(memberId: string): Promise<{ ok: true; name: string }> {
-  const { data: m, error } = await supabase
+  const sb = await getSupabase()
+  const { data: m, error } = await sb
     .from('members')
     .select('name, phone')
     .eq('id', memberId)

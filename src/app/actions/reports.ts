@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase } from '@/lib/supabaseServer'
+import { getSupabase } from '@/lib/supabaseServer'
 import type {
   RevenuePoint,
   MemberGrowthPoint,
@@ -17,13 +17,14 @@ function monthLabel(d: Date): string {
 }
 
 export async function getRevenueReport(): Promise<RevenuePoint[]> {
+  const sb = await getSupabase()
   const now = new Date()
   const months: Date[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     months.push(d)
   }
-  const { data: payments, error } = await supabase
+  const { data: payments, error } = await sb
     .from('payments')
     .select('amount, paid_at')
     .eq('status', 'Paid')
@@ -42,13 +43,14 @@ export async function getRevenueReport(): Promise<RevenuePoint[]> {
 }
 
 export async function getMemberGrowthReport(): Promise<MemberGrowthPoint[]> {
+  const sb = await getSupabase()
   const now = new Date()
   const months: Date[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     months.push(d)
   }
-  const { data: members, error } = await supabase
+  const { data: members, error } = await sb
     .from('members')
     .select('created_at')
     .order('created_at', { ascending: true })
@@ -62,7 +64,8 @@ export async function getMemberGrowthReport(): Promise<MemberGrowthPoint[]> {
 }
 
 export async function getPlanPerformanceReport(): Promise<PlanPerformancePoint[]> {
-  const { data: plans, error } = await supabase
+  const sb = await getSupabase()
+  const { data: plans, error } = await sb
     .from('membership_plans')
     .select(`
       *,
@@ -84,12 +87,13 @@ export async function getPlanPerformanceReport(): Promise<PlanPerformancePoint[]
 }
 
 export async function getRetentionReport(): Promise<RetentionPoint[]> {
-  const { count: active, error: aErr } = await supabase
+  const sb = await getSupabase()
+  const { count: active, error: aErr } = await sb
     .from('memberships')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'Active')
   if (aErr) throw new Error(`Failed to load retention: ${aErr.message}`)
-  const { count: expired, error: eErr } = await supabase
+  const { count: expired, error: eErr } = await sb
     .from('memberships')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'Expired')

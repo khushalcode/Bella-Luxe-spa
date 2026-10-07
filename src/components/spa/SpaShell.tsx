@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import type { SpaRole } from '@/lib/supabase-server'
 import type {
   MemberDTO,
   PlanDTO,
@@ -22,6 +21,7 @@ import type {
   StaffAttendanceDTO,
   StaffSalaryRow,
 } from '@/lib/types'
+import { useRealtimeSync } from '@/hooks/use-realtime-sync'
 
 export type ViewKey =
   | 'dashboard'
@@ -34,6 +34,7 @@ export type ViewKey =
   | 'packages'
   | 'staff'
   | 'attendance'
+  | 'salary'
   | 'reports'
   | 'marketing'
   | 'settings'
@@ -63,10 +64,6 @@ interface SpaContextValue extends SpaData {
   view: ViewKey
   setView: (v: ViewKey) => void
   refresh: () => void
-  // Auth
-  userRole: SpaRole
-  userEmail: string | null
-  userName: string | null
   // UI state for global dialogs/sheets
   isAddMemberOpen: boolean
   setAddMemberOpen: (b: boolean) => void
@@ -80,6 +77,8 @@ interface SpaContextValue extends SpaData {
   selectedMemberId: string | null
   openMember: (id: string) => void
   closeMember: () => void
+  // Realtime sync status
+  realtime: { status: 'live' | 'polling' | 'off'; lastSync: number }
 }
 
 const SpaContext = createContext<SpaContextValue | null>(null)
@@ -92,15 +91,9 @@ export function useSpa() {
 
 export function SpaShell({
   initial,
-  userRole = 'admin',
-  userEmail = null,
-  userName = null,
   children,
 }: {
   initial: SpaData
-  userRole?: SpaRole
-  userEmail?: string | null
-  userName?: string | null
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -110,6 +103,10 @@ export function SpaShell({
   const [isBookApptOpen, setBookApptOpen] = useState(false)
   const [isCreateInvoiceOpen, setCreateInvoiceOpen] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+
+  // Realtime sync — 5-second polling fallback + Supabase Realtime subscriptions.
+  // Calls router.refresh() which is a soft refresh (no full page reload).
+  const realtime = useRealtimeSync()
 
   const setView = useCallback((v: ViewKey) => {
     setViewState(v)
@@ -129,9 +126,6 @@ export function SpaShell({
       view,
       setView,
       refresh,
-      userRole,
-      userEmail,
-      userName,
       isAddMemberOpen,
       setAddMemberOpen,
       isBookApptOpen,
@@ -143,15 +137,13 @@ export function SpaShell({
       selectedMemberId,
       openMember,
       closeMember,
+      realtime,
     }),
     [
       initial,
       view,
       setView,
       refresh,
-      userRole,
-      userEmail,
-      userName,
       isAddMemberOpen,
       isBookApptOpen,
       isCreateInvoiceOpen,
@@ -159,6 +151,7 @@ export function SpaShell({
       selectedMemberId,
       openMember,
       closeMember,
+      realtime,
     ]
   )
 

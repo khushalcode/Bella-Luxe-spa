@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { Bell, Search, ChevronDown, Menu, LogOut, X, UserRound, Phone, Hash } from "lucide-react";
-import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -17,7 +15,6 @@ import { useSpa } from "./SpaShell";
 import { MemberAvatar } from "./MemberAvatar";
 import { StatusPill } from "./Pills";
 import { formatDate } from "@/lib/format";
-import { supabaseBrowser } from "@/lib/supabase";
 import type { MemberDTO } from "@/lib/types";
 
 /**
@@ -137,10 +134,8 @@ function QuickMemberSearch({
 }
 
 export function Topbar() {
-  const { setMobileSidebarOpen, setView, openMember, members, userRole, userEmail, userName } = useSpa();
-  const router = useRouter();
+  const { setMobileSidebarOpen, setView, openMember, members } = useSpa();
   const [search, setSearch] = useState("");
-  const [signingOut, setSigningOut] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [align, setAlign] = useState({ left: 0, top: 0, width: 0 });
@@ -190,20 +185,6 @@ export function Topbar() {
   // Total members count badge (informational)
   const totalMembers = members.length;
 
-  async function handleLogout() {
-    if (signingOut) return;
-    setSigningOut(true);
-    try {
-      await supabaseBrowser.auth.signOut();
-      toast.success("You have been signed out.");
-      // Hard reload to drop any in-memory role state and clear the auth cookies.
-      if (typeof window !== "undefined") window.location.href = "/";
-    } catch (e) {
-      setSigningOut(false);
-      toast.error(e instanceof Error ? e.message : "Unable to sign out.");
-    }
-  }
-
   return (
     <header className="relative z-30 px-4 pb-2 pt-4 md:px-6">
       <div className="flex items-center gap-3">
@@ -239,6 +220,9 @@ export function Topbar() {
         </div>
 
         <div className="ml-auto flex items-center gap-3">
+          {/* Realtime sync indicator — pulses when live */}
+          <RealtimeIndicator />
+
           <button
             className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-[0_2px_10px_rgba(120,60,80,0.08)] hover:bg-[#FBE4E2]"
             aria-label="Notifications"
@@ -252,18 +236,18 @@ export function Topbar() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2.5 rounded-2xl bg-white/95 py-1.5 pl-1.5 pr-3 shadow-[0_2px_10px_rgba(120,60,80,0.08)] hover:bg-white">
-                <Avatar className="h-[38px] w-[38px] border border-white">
-                  <AvatarImage src="/spa/avatars/admin.jpg" alt={userName ?? "Admin"} />
+                <Avatar className="h-[38px] w-[38px] border border-white ring-1 ring-[#D9708A]/20">
+                  <AvatarImage src="/logo.png" alt="Bella Luxe Day Spa" />
                   <AvatarFallback className="bg-[#2D1B30] text-[11px] font-semibold text-[#F5D9DC]">
-                    {(userName ?? "AD").slice(0, 2).toUpperCase()}
+                    BL
                   </AvatarFallback>
                 </Avatar>
                 <span className="hidden text-left leading-tight md:block">
                   <span className="block text-[13px] font-semibold text-[#1F2937]">
-                    {userName ?? (userEmail ? userEmail.split("@")[0] : "Admin")}
+                    Admin
                   </span>
-                  <span className="block text-[10.5px] font-medium uppercase tracking-wider text-[#8E4A63]">
-                    {userRole} access
+                  <span className="block text-[10.5px] text-[#6B7280]">
+                    Bella Luxe Day Spa
                   </span>
                 </span>
                 <ChevronDown className="hidden h-4 w-4 text-[#3a3340] md:block" />
@@ -271,20 +255,11 @@ export function Topbar() {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-56 rounded-xl border-[#2D1B30]/10 bg-white"
+              className="w-44 rounded-xl border-[#2D1B30]/10 bg-white"
             >
-              <DropdownMenuLabel className="flex flex-col gap-0.5 text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
-                <span className="text-[12.5px] font-semibold normal-case tracking-normal text-[#1F2937]">
-                  {userName ?? "Spa Admin"}
-                </span>
-                <span className="text-[11px] font-normal normal-case text-[#6B7280]">
-                  {userEmail ?? "Bella Luxe Day Spa"}
-                </span>
-                <span className="mt-1 inline-flex w-fit items-center rounded-full bg-[#FBE4E2] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#8E4A63]">
-                  {userRole}
-                </span>
+              <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
+                Bella Luxe Day Spa
               </DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-[#2D1B30]/10" />
               <DropdownMenuItem onClick={() => setView("settings")} className="text-[12.5px]">
                 Profile
               </DropdownMenuItem>
@@ -295,18 +270,56 @@ export function Topbar() {
                 Members ({totalMembers})
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-[#2D1B30]/10" />
-              <DropdownMenuItem
-                onClick={handleLogout}
-                disabled={signingOut}
-                className="text-[12.5px] text-[#EF4444] focus:text-[#EF4444]"
-              >
+              <DropdownMenuItem className="text-[12.5px] text-[#EF4444]">
                 <LogOut className="mr-2 h-3.5 w-3.5" />
-                {signingOut ? "Signing out…" : "Logout"}
+                Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Realtime sync indicator — shows a small green "Live" badge with a pulsing
+ * dot when Supabase Realtime is connected, or a yellow "5s" badge when only
+ * polling is active.
+ */
+function RealtimeIndicator() {
+  const { realtime } = useSpa();
+  const isLive = realtime.status === "live";
+  const isPolling = realtime.status === "polling";
+
+  if (!isLive && !isPolling) return null;
+
+  const ago = Math.max(0, Math.round((Date.now() - realtime.lastSync) / 1000));
+
+  return (
+    <div
+      className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold sm:flex ${
+        isLive
+          ? "bg-[#DDF3E8] text-[#1F5B3E]"
+          : "bg-[#FCE8CF] text-[#A06100]"
+      }`}
+      title={
+        isLive
+          ? `Supabase Realtime connected — instant updates from all 14 tables. Last sync: ${ago}s ago`
+          : `Polling every 5 seconds. Last sync: ${ago}s ago`
+      }
+    >
+      <span className="relative flex h-2 w-2">
+        {isLive && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2E9E6E] opacity-75"></span>
+        )}
+        <span
+          className={`relative inline-flex h-2 w-2 rounded-full ${
+            isLive ? "bg-[#2E9E6E]" : "bg-[#E08A2E]"
+          }`}
+        ></span>
+      </span>
+      {isLive ? "Live" : "5s"}
+    </div>
   );
 }

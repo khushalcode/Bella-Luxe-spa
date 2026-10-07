@@ -39,7 +39,8 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Bella Luxe Day Spa" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/logo.png",
+    apple: "/logo.png",
   },
 };
 

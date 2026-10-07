@@ -1,6 +1,6 @@
 "use client";
 
-import { Lotus } from "./Lotus";
+import Image from "next/image";
 
 export function Hero() {
   return (
@@ -21,7 +21,13 @@ export function Hero() {
         </p>
         <div className="mt-2 flex items-center justify-center gap-3 text-[#8a6f6a]">
           <span className="h-px w-16 bg-[#8a6f6a]/50" />
-          <Lotus className="h-[14px] w-5" strokeWidth={1.6} />
+          <Image
+            src="/logo.png"
+            alt=""
+            width={20}
+            height={20}
+            className="h-5 w-5 rounded-full object-cover"
+          />
           <span className="h-px w-16 bg-[#8a6f6a]/50" />
         </div>
       </div>
