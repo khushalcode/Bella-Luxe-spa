@@ -1,5 +1,6 @@
 import { SpaShell, type SpaData } from "@/components/spa/SpaShell";
 import { SpaLayout } from "@/components/spa/SpaLayout";
+import { AuthGate } from "@/components/spa/AuthGate";
 import { getDashboardSummary } from "@/app/actions/dashboard";
 import { getMembers } from "@/app/actions/members";
 import { getPlans } from "@/app/actions/plans";
@@ -112,7 +113,9 @@ export default async function Page() {
 
   return (
     <SpaShell initial={initial}>
-      <SpaLayout />
+      <AuthGate>
+        <SpaLayout />
+      </AuthGate>
     </SpaShell>
   );
 }

@@ -5,6 +5,12 @@ import type { StaffAttendanceDTO, StaffSalaryRow } from '@/lib/types'
 import { monthLabel } from '@/lib/dates'
 
 const RETENTION_DAYS = 60 // keep only last ~2 months of attendance
+const CLEANUP_CACHE_MS = 60 * 60 * 1000 // run cleanup at most once per hour
+
+// Global in-memory cache — survives across server action invocations within
+// the same Node.js process. Prevents the cleanup DELETE from running on every
+// single read (which was killing the dev server with 18+ requests/sec).
+let lastCleanupAt = 0
 
 function currentYearMonth(): string {
   const d = new Date()
@@ -37,8 +43,21 @@ function toDTO(a: AttendanceRow): StaffAttendanceDTO {
   }
 }
 
-/** Removes attendance records older than RETENTION_DAYS. Called automatically. */
-export async function cleanupOldAttendance(): Promise<{ deleted: number }> {
+/**
+ * Removes attendance records older than RETENTION_DAYS. Called automatically
+ * by read functions, but throttled to once per hour via in-memory cache.
+ *
+ * The first call after server boot (or after 1 hour has elapsed) will run the
+ * DELETE; subsequent calls within the same hour are no-ops. This prevents the
+ * cleanup from running on every single page load (which was killing the dev
+ * server when polling was 1 second).
+ */
+export async function cleanupOldAttendance(force = false): Promise<{ deleted: number }> {
+  const now = Date.now()
+  if (!force && now - lastCleanupAt < CLEANUP_CACHE_MS) {
+    return { deleted: 0 } // throttled — skip
+  }
+  lastCleanupAt = now
   const sb = await getSupabase()
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - RETENTION_DAYS)
@@ -55,6 +74,7 @@ export async function cleanupOldAttendance(): Promise<{ deleted: number }> {
 /** Returns attendance for a given month (defaults to current month). */
 export async function getMonthlyAttendance(yearMonth?: string): Promise<StaffAttendanceDTO[]> {
   const sb = await getSupabase()
+  // Throttled cleanup — only runs once per hour, not on every call
   await cleanupOldAttendance()
   const ym = yearMonth ?? currentYearMonth()
   const [y, m] = ym.split('-').map((n) => parseInt(n, 10))
@@ -77,6 +97,7 @@ export async function getMonthlyAttendance(yearMonth?: string): Promise<StaffAtt
 /** Returns attendance for a specific date (defaults to today). */
 export async function getAttendanceForDate(date?: string): Promise<StaffAttendanceDTO[]> {
   const sb = await getSupabase()
+  // Throttled cleanup — only runs once per hour, not on every call
   await cleanupOldAttendance()
   const d = date ?? new Date().toISOString().slice(0, 10)
   const { data, error } = await sb
@@ -136,6 +157,7 @@ export async function bulkMarkAttendance(
     notes?: string | null
   }>
 ): Promise<{ ok: true; count: number }> {
+  const sb = await getSupabase()
   const rows = records.map((r) => ({
     staff_id: r.staffId,
     date,
@@ -223,6 +245,7 @@ export async function getMonthlySalary(yearMonth?: string): Promise<StaffSalaryR
 /** Returns the available months that have attendance data (for the date/month-wise report selector). */
 export async function getAvailableMonths(): Promise<{ yearMonth: string; label: string; count: number }[]> {
   const sb = await getSupabase()
+  // Throttled cleanup — only runs once per hour, not on every call
   await cleanupOldAttendance()
   const { data, error } = await sb.from('staff_attendance').select('date')
   if (error) throw new Error(`Failed to load attendance months: ${error.message}`)

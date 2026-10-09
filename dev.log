@@ -1,42 +1,199 @@
 ▲ Next.js 16.3.8 (Turbopack)
 - Local:         http://localhost:3000
-- Network:       http://10.162.62.67:3000
+- Network:       http://10.220.58.67:3000
 - Environments: .env
-✓ Ready in 12.1s
-✓ Running next.config.ts took 2.3s
-⚠ Slow filesystem detected. The benchmark took 549ms. If /Users/mac/Downloads/Bella-Luxe-spa-main/.next/dev is a network drive, consider moving it to a local folder.
-See more: https://nextjs.org/docs/app/guides/local-development
+✓ Ready in 38.5s
+✓ Running next.config.ts took 1320ms
 
 ○ Compiling / ...
 ⚠️  Node.js 20 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 22 or later. For more information, visit: https://github.com/orgs/supabase/discussions/45715
-[Supabase] No SUPABASE_SERVICE_ROLE_KEY set — falling back to admin login mode.
-  Server actions will authenticate as admin@bellaluxe.com via Supabase Auth.
-  For production, set SUPABASE_SERVICE_ROLE_KEY in .env for best performance.
- GET / 200 in 55s (next.js: 14.8s, application-code: 41s)
- POST / 200 in 28.9s (next.js: 3.1s, application-code: 25.8s)
-  └─ ƒ togglePlan("3f8ca08a-0f6b-4d7d-8e4c-bf7258408c51") in 8340ms src/app/actions/plans.ts
- POST / 200 in 8.3s (next.js: 4.5s, application-code: 3.8s)
-  └─ ƒ togglePlan("3f8ca08a-0f6b-4d7d-8e4c-bf7258408c51") in 2599ms src/app/actions/plans.ts
- POST / 200 in 23.9s (next.js: 112ms, application-code: 23.7s)
-  └─ ƒ togglePlan("3f8ca08a-0f6b-4d7d-8e4c-bf7258408c51") in 21159ms src/app/actions/plans.ts
- GET / 200 in 48s (next.js: 1089ms, application-code: 47s)
- GET / 200 in 50s (next.js: 665ms, application-code: 49s)
- GET / 200 in 31.9s (next.js: 258ms, application-code: 31.7s)
- POST / 200 in 2.6s (next.js: 366ms, application-code: 2.3s)
-  └─ ƒ updateStaff("602ac57e-a239-4b0e-b580-b8dcd425c6bd", {"commissionPct":0,"endHour":"17:00","isActive":true,"...":"5 items not stringified"}) in 2067ms src/app/actions/staff.ts
- POST / 200 in 1568ms (next.js: 37ms, application-code: 1531ms)
-  └─ ƒ updateStaff("602ac57e-a239-4b0e-b580-b8dcd425c6bd", {"commissionPct":0,"endHour":"17:00","isActive":true,"...":"5 items not stringified"}) in 1217ms src/app/actions/staff.ts
- GET / 200 in 31.5s (next.js: 39ms, application-code: 31.5s)
- POST / 200 in 3.4s (next.js: 33ms, application-code: 3.3s)
-  └─ ƒ toggleStaff("602ac57e-a239-4b0e-b580-b8dcd425c6bd") in 3274ms src/app/actions/staff.ts
- GET / 200 in 60s (next.js: 386ms, application-code: 59s)
- GET / 200 in 37.0s (next.js: 3.2s, application-code: 33.9s)
- GET / 200 in 47s (next.js: 46ms, application-code: 47s)
-⨯ Error: The destination stream closed early.
-    at ignore-listed frames {
-  digest: '3320718923'
+⚠️  Node.js 20 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 22 or later. For more information, visit: https://github.com/orgs/supabase/discussions/45715
+ GET / 200 in 76s (next.js: 48s, application-code: 27.9s)
+ GET / 200 in 15.7s (next.js: 128ms, application-code: 15.6s)
+ POST / 200 in 2.0s (next.js: 257ms, application-code: 1744ms)
+  └─ ƒ deleteMember("b78e3393-eb9a-4b14-a210-10628eb3b4fa") in 1371ms src/app/actions/members.ts
+ POST / 200 in 2.1s (next.js: 44ms, application-code: 2.1s)
+  └─ ƒ deleteStaff("e3ab7924-ceea-4cab-a65c-909813baa16f") in 1155ms src/app/actions/staff.ts
+ GET / 200 in 62s (next.js: 44ms, application-code: 62s)
+ GET / 200 in 41s (next.js: 40ms, application-code: 41s)
+ GET / 200 in 24.1s (next.js: 602ms, application-code: 23.5s)
+ GET / 200 in 6.2s (next.js: 35ms, application-code: 6.2s)
+ GET / 200 in 81s (next.js: 460ms, application-code: 80s)
+ GET / 200 in 47s (next.js: 1500ms, application-code: 46s)
+ POST / 200 in 1120ms (next.js: 172ms, application-code: 947ms)
+  └─ ƒ deleteMember("42b97e64-370e-4223-8051-7132587839fe") in 509ms src/app/actions/members.ts
+ POST / 200 in 1261ms (next.js: 255ms, application-code: 1006ms)
+  └─ ƒ deleteMember("42b97e64-370e-4223-8051-7132587839fe") in 463ms src/app/actions/members.ts
+[browser] [realtime] Supabase Realtime failed, falling back to polling only (src/hooks/use-realtime-sync.ts:146:21)
+⨯ Error: Failed to delete member: TypeError: fetch failed
+    at deleteMember (src/app/actions/members.ts:323:20)
+  321 |   const sb = await getSupabase()
+  322 |   const { error } = await sb.from('members').delete().eq('id', id)
+> 323 |   if (error) throw new Error(`Failed to delete member: ${error.message}`)
+      |                    ^
+  324 |   return { ok: true }
+  325 | }
+  326 | {
+  digest: '3506711690'
 }
- POST / 200 in 5.7s (next.js: 1632ms, application-code: 4.0s)
-  └─ ƒ toggleStaff("602ac57e-a239-4b0e-b580-b8dcd425c6bd") in 3186ms src/app/actions/staff.ts
- GET / 200 in 80s (next.js: 88ms, application-code: 80s)
- GET / 200 in 67s (next.js: 110ms, application-code: 66s)
+[loader:plans] Failed to load plans: TypeError: fetch failed
+[loader:members] Failed to load members: TypeError: fetch failed
+[loader:revenueReport] Failed to load revenue report: TypeError: fetch failed
+[loader:summary] Failed to count members: TypeError: fetch failed
+[loader:summary] Failed to load today's attendance: TypeError: fetch failed
+[loader:attendanceMonths] Failed to load attendance months: TypeError: fetch failed
+[loader:monthlyReports] Failed to load monthly reports: TypeError: fetch failed
+[loader:attendance] Failed to load monthly attendance: TypeError: fetch failed
+[loader:dailyEntries] Failed to load daily entries: TypeError: fetch failed
+[loader:retention] Failed to load retention: TypeError: fetch failed
+[loader:memberGrowth] Failed to load member growth: TypeError: fetch failed
+[loader:planPerformance] Failed to load plan performance: TypeError: fetch failed
+[loader:packages] Failed to load packages: TypeError: fetch failed
+[loader:campaigns] Failed to load campaigns: TypeError: fetch failed
+[loader:payments] Failed to load payments: TypeError: fetch failed
+[loader:appointments] Failed to load appointments: TypeError: fetch failed
+[loader:staff] Failed to load staff: TypeError: fetch failed
+[loader:salaryRows] Failed to load staff: TypeError: fetch failed
+[loader:services] Failed to load services: TypeError: fetch failed
+[loader:attendance] Failed to load monthly attendance: TypeError: fetch failed
+[loader:monthlyReports] Failed to load monthly reports: TypeError: fetch failed
+[loader:attendanceMonths] Failed to load attendance months: TypeError: fetch failed
+[loader:dailyEntries] Failed to load daily entries: TypeError: fetch failed
+[loader:retention] Failed to load retention: TypeError: fetch failed
+[loader:planPerformance] Failed to load plan performance: TypeError: fetch failed
+[loader:campaigns] Failed to load campaigns: TypeError: fetch failed
+[loader:memberGrowth] Failed to load member growth: TypeError: fetch failed
+[loader:packages] Failed to load packages: TypeError: fetch failed
+[loader:payments] Failed to load payments: TypeError: fetch failed
+[loader:appointments] Failed to load appointments: TypeError: fetch failed
+[loader:staff] Failed to load staff: TypeError: fetch failed
+[loader:salaryRows] Failed to load staff: TypeError: fetch failed
+[loader:services] Failed to load services: TypeError: fetch failed
+[loader:members] Failed to load members: TypeError: fetch failed
+[loader:plans] Failed to load plans: TypeError: fetch failed
+[loader:revenueReport] Failed to load revenue report: TypeError: fetch failed
+[loader:summary] Failed to count members: TypeError: fetch failed
+ GET / 200 in 2.6min (next.js: 5.3s, application-code: 2.5min)
+ POST / 500 in 2.1min (next.js: 264ms, application-code: 2.1min)
+  └─ ƒ deleteMember("42b97e64-370e-4223-8051-7132587839fe") in 80791ms src/app/actions/members.ts
+ GET / 200 in 3.1min (next.js: 91ms, application-code: 3.1min)
+ GET / 200 in 2.1min (next.js: 53ms, application-code: 2.1min)
+ GET / 200 in 475ms
+[loader:revenueReport] Failed to load revenue report: TypeError: fetch failed
+[loader:summary] Failed to count members: TypeError: fetch failed
+[loader:members] Failed to load members: TypeError: fetch failed
+[loader:plans] Failed to load plans: TypeError: fetch failed
+[loader:services] Failed to load services: TypeError: fetch failed
+[loader:staff] Failed to load staff: TypeError: fetch failed
+[loader:salaryRows] Failed to load staff: TypeError: fetch failed
+[loader:appointments] Failed to load appointments: TypeError: fetch failed
+[loader:payments] Failed to load payments: TypeError: fetch failed
+[loader:packages] Failed to load packages: TypeError: fetch failed
+[loader:campaigns] Failed to load campaigns: TypeError: fetch failed
+[loader:memberGrowth] Failed to load member growth: TypeError: fetch failed
+[loader:planPerformance] Failed to load plan performance: TypeError: fetch failed
+[loader:retention] Failed to load retention: TypeError: fetch failed
+[loader:dailyEntries] Failed to load daily entries: TypeError: fetch failed
+[loader:monthlyReports] Failed to load monthly reports: TypeError: fetch failed
+[loader:attendance] Failed to load monthly attendance: TypeError: fetch failed
+[loader:attendanceMonths] Failed to load attendance months: TypeError: fetch failed
+[browser] [realtime] Supabase Realtime failed, falling back to polling only (src/hooks/use-realtime-sync.ts:146:21)
+[loader:revenueReport] Failed to load revenue report: TypeError: fetch failed
+[loader:summary] Failed to count members: TypeError: fetch failed
+[loader:members] Failed to load members: TypeError: fetch failed
+[loader:plans] Failed to load plans: TypeError: fetch failed
+[loader:services] Failed to load services: TypeError: fetch failed
+[loader:staff] Failed to load staff: TypeError: fetch failed
+[loader:salaryRows] Failed to load staff: TypeError: fetch failed
+[loader:appointments] Failed to load appointments: TypeError: fetch failed
+[loader:payments] Failed to load payments: TypeError: fetch failed
+[loader:packages] Failed to load packages: TypeError: fetch failed
+[loader:campaigns] Failed to load campaigns: TypeError: fetch failed
+[loader:memberGrowth] Failed to load member growth: TypeError: fetch failed
+[loader:planPerformance] Failed to load plan performance: TypeError: fetch failed
+[loader:retention] Failed to load retention: TypeError: fetch failed
+[loader:dailyEntries] Failed to load daily entries: TypeError: fetch failed
+[loader:monthlyReports] Failed to load monthly reports: TypeError: fetch failed
+[loader:attendance] Failed to load monthly attendance: TypeError: fetch failed
+[loader:attendanceMonths] Failed to load attendance months: TypeError: fetch failed
+ GET / 200 in 11.1s (next.js: 55ms, application-code: 11.1s)
+[loader:revenueReport] Failed to load revenue report: TypeError: fetch failed
+[loader:summary] Failed to count members: TypeError: fetch failed
+[loader:members] Failed to load members: TypeError: fetch failed
+[loader:plans] Failed to load plans: TypeError: fetch failed
+[loader:services] Failed to load services: TypeError: fetch failed
+[loader:staff] Failed to load staff: TypeError: fetch failed
+[loader:salaryRows] Failed to load staff: TypeError: fetch failed
+[loader:appointments] Failed to load appointments: TypeError: fetch failed
+[loader:payments] Failed to load payments: TypeError: fetch failed
+[loader:packages] Failed to load packages: TypeError: fetch failed
+[loader:campaigns] Failed to load campaigns: TypeError: fetch failed
+[loader:memberGrowth] Failed to load member growth: TypeError: fetch failed
+[loader:planPerformance] Failed to load plan performance: TypeError: fetch failed
+[loader:retention] Failed to load retention: TypeError: fetch failed
+[loader:dailyEntries] Failed to load daily entries: TypeError: fetch failed
+[loader:monthlyReports] Failed to load monthly reports: TypeError: fetch failed
+[loader:attendance] Failed to load monthly attendance: TypeError: fetch failed
+[loader:attendanceMonths] Failed to load attendance months: TypeError: fetch failed
+ GET / 200 in 10.0s (next.js: 22ms, application-code: 9.9s)
+[loader:revenueReport] Failed to load revenue report: TypeError: fetch failed
+[loader:summary] Failed to count members: TypeError: fetch failed
+[loader:members] Failed to load members: TypeError: fetch failed
+[loader:plans] Failed to load plans: TypeError: fetch failed
+[loader:services] Failed to load services: TypeError: fetch failed
+[loader:staff] Failed to load staff: TypeError: fetch failed
+[loader:salaryRows] Failed to load staff: TypeError: fetch failed
+[loader:appointments] Failed to load appointments: TypeError: fetch failed
+[loader:payments] Failed to load payments: TypeError: fetch failed
+[loader:packages] Failed to load packages: TypeError: fetch failed
+[loader:campaigns] Failed to load campaigns: TypeError: fetch failed
+[loader:memberGrowth] Failed to load member growth: TypeError: fetch failed
+[loader:planPerformance] Failed to load plan performance: TypeError: fetch failed
+[loader:retention] Failed to load retention: TypeError: fetch failed
+[loader:dailyEntries] Failed to load daily entries: TypeError: fetch failed
+[loader:monthlyReports] Failed to load monthly reports: TypeError: fetch failed
+[loader:attendance] Failed to load monthly attendance: TypeError: fetch failed
+[loader:attendanceMonths] Failed to load attendance months: TypeError: fetch failed
+ GET / 200 in 12.0s (next.js: 36ms, application-code: 11.9s)
+[loader:revenueReport] Failed to load revenue report: TypeError: fetch failed
+[loader:summary] Failed to count members: TypeError: fetch failed
+[loader:members] Failed to load members: TypeError: fetch failed
+[loader:plans] Failed to load plans: TypeError: fetch failed
+[loader:services] Failed to load services: TypeError: fetch failed
+[loader:staff] Failed to load staff: TypeError: fetch failed
+[loader:salaryRows] Failed to load staff: TypeError: fetch failed
+[loader:appointments] Failed to load appointments: TypeError: fetch failed
+[loader:payments] Failed to load payments: TypeError: fetch failed
+[loader:packages] Failed to load packages: TypeError: fetch failed
+[loader:campaigns] Failed to load campaigns: TypeError: fetch failed
+[loader:memberGrowth] Failed to load member growth: TypeError: fetch failed
+[loader:planPerformance] Failed to load plan performance: TypeError: fetch failed
+[loader:retention] Failed to load retention: TypeError: fetch failed
+[loader:dailyEntries] Failed to load daily entries: TypeError: fetch failed
+[loader:monthlyReports] Failed to load monthly reports: TypeError: fetch failed
+[loader:attendance] Failed to load monthly attendance: TypeError: fetch failed
+[loader:attendanceMonths] Failed to load attendance months: TypeError: fetch failed
+ GET / 200 in 13.6s (next.js: 100ms, application-code: 13.5s)
+[loader:revenueReport] Failed to load revenue report: TypeError: fetch failed
+[loader:summary] Failed to count members: TypeError: fetch failed
+[loader:members] Failed to load members: TypeError: fetch failed
+[loader:plans] Failed to load plans: TypeError: fetch failed
+[loader:services] Failed to load services: TypeError: fetch failed
+[loader:staff] Failed to load staff: TypeError: fetch failed
+[loader:salaryRows] Failed to load staff: TypeError: fetch failed
+[loader:appointments] Failed to load appointments: TypeError: fetch failed
+[loader:payments] Failed to load payments: TypeError: fetch failed
+[loader:packages] Failed to load packages: TypeError: fetch failed
+[loader:campaigns] Failed to load campaigns: TypeError: fetch failed
+[loader:memberGrowth] Failed to load member growth: TypeError: fetch failed
+[loader:retention] Failed to load retention: TypeError: fetch failed
+[loader:planPerformance] Failed to load plan performance: TypeError: fetch failed
+[loader:dailyEntries] Failed to load daily entries: TypeError: fetch failed
+[loader:monthlyReports] Failed to load monthly reports: TypeError: fetch failed
+[loader:attendance] Failed to load monthly attendance: TypeError: fetch failed
+[loader:attendanceMonths] Failed to load attendance months: TypeError: fetch failed
+ GET / 200 in 29.9s (next.js: 126ms, application-code: 29.8s)
+ GET / 200 in 39.9s (next.js: 73ms, application-code: 39.9s)
+ GET / 200 in 12.5s (next.js: 115ms, application-code: 12.4s)
+ GET / 200 in 45s (next.js: 195ms, application-code: 45s)
+ GET / 200 in 70s (next.js: 38ms, application-code: 70s)

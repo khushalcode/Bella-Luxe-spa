@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Bell, Search, ChevronDown, Menu, LogOut, X, UserRound, Phone, Hash } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/hooks/use-auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -135,6 +136,7 @@ function QuickMemberSearch({
 
 export function Topbar() {
   const { setMobileSidebarOpen, setView, openMember, members } = useSpa();
+  const { user, signOut } = useAuth();
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -244,10 +246,10 @@ export function Topbar() {
                 </Avatar>
                 <span className="hidden text-left leading-tight md:block">
                   <span className="block text-[13px] font-semibold text-[#1F2937]">
-                    Admin
+                    {user?.email?.split("@")[0]?.replace(/\b\w/g, (c: string) => c.toUpperCase()) ?? "Admin"}
                   </span>
                   <span className="block text-[10.5px] text-[#6B7280]">
-                    Bella Luxe Day Spa
+                    {user?.email ?? "Bella Luxe Day Spa"}
                   </span>
                 </span>
                 <ChevronDown className="hidden h-4 w-4 text-[#3a3340] md:block" />
@@ -270,7 +272,10 @@ export function Topbar() {
                 Members ({totalMembers})
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-[#2D1B30]/10" />
-              <DropdownMenuItem className="text-[12.5px] text-[#EF4444]">
+              <DropdownMenuItem
+                onClick={() => signOut()}
+                className="text-[12.5px] text-[#EF4444]"
+              >
                 <LogOut className="mr-2 h-3.5 w-3.5" />
                 Logout
               </DropdownMenuItem>
@@ -306,7 +311,7 @@ function RealtimeIndicator() {
       title={
         isLive
           ? `Supabase Realtime connected — instant updates from all 14 tables. Last sync: ${ago}s ago`
-          : `Polling every 1 second. Last sync: ${ago}s ago`
+          : `Polling every 10 seconds. Last sync: ${ago}s ago`
       }
     >
       <span className="relative flex h-2 w-2">
@@ -319,7 +324,7 @@ function RealtimeIndicator() {
           }`}
         ></span>
       </span>
-      {isLive ? "Live" : "1s"}
+      {isLive ? "Live" : "10s"}
     </div>
   );
 }

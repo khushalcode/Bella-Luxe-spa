@@ -45,7 +45,7 @@ const SUPABASE_TABLES = [
   'staff_attendance',
 ] as const
 
-const POLL_INTERVAL_MS = 1000 // 1 second — near-instant feel
+const POLL_INTERVAL_MS = 10000 // 10 seconds — 1s was killing the server
 
 type RealtimeStatus = 'live' | 'polling' | 'off'
 
@@ -99,7 +99,10 @@ export function useRealtimeSync() {
   useEffect(() => {
     mountedRef.current = true
 
-    // 1. Start 5-second polling (always on — this is the guaranteed fallback)
+    // 1. Start polling (always on initially — this is the guaranteed fallback).
+    // When Supabase Realtime connects successfully (step 2), we'll stop polling
+    // to avoid hammering the server. If Realtime fails, polling continues as the
+    // only mechanism.
     setStatus((prev) => (prev === 'off' ? 'polling' : prev))
     pollTimerRef.current = setInterval(safeRefresh, POLL_INTERVAL_MS)
 
@@ -131,10 +134,20 @@ export function useRealtimeSync() {
           if (!mountedRef.current) return
           if (status_ === 'SUBSCRIBED') {
             setStatus('live')
-            console.log('[realtime] Supabase Realtime connected — instant updates active')
+            console.log('[realtime] Supabase Realtime connected — instant updates active, polling stopped')
+            // Stop polling now that Realtime is active — saves server load.
+            // Realtime gives instant updates; polling is no longer needed.
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current)
+              pollTimerRef.current = null
+            }
           } else if (status_ === 'CHANNEL_ERROR' || status_ === 'TIMED_OUT') {
             setStatus('polling')
-            console.warn('[realtime] Supabase Realtime failed, falling back to 5s polling only')
+            console.warn('[realtime] Supabase Realtime failed, falling back to polling only')
+            // Ensure polling is running (in case it was stopped before)
+            if (!pollTimerRef.current) {
+              pollTimerRef.current = setInterval(safeRefresh, POLL_INTERVAL_MS)
+            }
           }
         })
 
@@ -144,7 +157,7 @@ export function useRealtimeSync() {
         setStatus('polling')
       }
     } else {
-      console.warn('[realtime] No Supabase env vars — using 5s polling only')
+      console.warn('[realtime] No Supabase env vars — using polling only')
       setStatus('polling')
     }
 
