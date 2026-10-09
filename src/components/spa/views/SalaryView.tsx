@@ -50,7 +50,7 @@ import type { StaffDTO, StaffSalaryRow } from "@/lib/types";
  * for each staff based on the per-day salary entered here.
  */
 export function SalaryView() {
-  const { staff, refresh } = useSpa();
+  const { staff, refresh, mergeData } = useSpa();
   const [editedSalaries, setEditedSalaries] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [salaryMonth, setSalaryMonth] = useState(currentYearMonth());
@@ -96,6 +96,12 @@ export function SalaryView() {
     setSaving((s) => ({ ...s, [staffId]: true }));
     try {
       await updateStaff(staffId, { perDaySalary: num });
+      // Optimistic update — instantly show new salary in UI
+      mergeData({
+        staff: staff.map((s) =>
+          s.id === staffId ? { ...s, perDaySalary: num } : s
+        ),
+      });
       toast.success("Per-day salary updated", {
         description: `${staff.find((s) => s.id === staffId)?.name}: ₹${num.toLocaleString("en-IN")} / day`,
       });

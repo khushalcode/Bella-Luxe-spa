@@ -45,7 +45,7 @@ const SUPABASE_TABLES = [
   'staff_attendance',
 ] as const
 
-const POLL_INTERVAL_MS = 5000 // 5 seconds
+const POLL_INTERVAL_MS = 1000 // 1 second — near-instant feel
 
 type RealtimeStatus = 'live' | 'polling' | 'off'
 
@@ -89,10 +89,10 @@ export function useRealtimeSync() {
     } catch (e) {
       console.warn('[realtime] refresh failed:', e)
     } finally {
-      // Unlock shortly after — allows the next poll cycle
+      // Unlock quickly — allows the next poll cycle
       setTimeout(() => {
         refreshLockRef.current = false
-      }, 800)
+      }, 200)
     }
   }, [])
 

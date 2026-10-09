@@ -64,6 +64,14 @@ interface SpaContextValue extends SpaData {
   view: ViewKey
   setView: (v: ViewKey) => void
   refresh: () => void
+  /**
+   * Optimistically update local data without waiting for server re-fetch.
+   * Use this AFTER a server action completes to instantly reflect the change
+   * in the UI. The background router.refresh() will reconcile shortly after.
+   *
+   * Example: mergeData({ dailyEntries: [newEntry, ...dailyEntries] })
+   */
+  mergeData: (partial: Partial<SpaData>) => void
   // UI state for global dialogs/sheets
   isAddMemberOpen: boolean
   setAddMemberOpen: (b: boolean) => void
@@ -104,8 +112,22 @@ export function SpaShell({
   const [isCreateInvoiceOpen, setCreateInvoiceOpen] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
 
-  // Realtime sync — 5-second polling fallback + Supabase Realtime subscriptions.
-  // Calls router.refresh() which is a soft refresh (no full page reload).
+  // Local data state — starts with `initial` from server, but can be optimistically
+  // updated via `mergeData` for instant UI feedback. When `router.refresh()` fires
+  // (every 1s via polling, or after a form submit), the server passes new `initial`
+  // props, and we sync the local state to match.
+  //
+  // We use the "derived state from props" pattern (setState during render) —
+  // this is the React-recommended approach for syncing state to props without
+  // causing cascading renders. See: https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevInitial, setPrevInitial] = useState<SpaData>(initial)
+  const [localData, setLocalData] = useState<SpaData>(initial)
+  if (prevInitial !== initial) {
+    setPrevInitial(initial)
+    setLocalData(initial)
+  }
+
+  // Realtime sync — 1-second polling + Supabase Realtime subscriptions.
   const realtime = useRealtimeSync()
 
   const setView = useCallback((v: ViewKey) => {
@@ -117,15 +139,26 @@ export function SpaShell({
     router.refresh()
   }, [router])
 
+  /**
+   * Optimistically merge new data into the local state. Called by forms right
+   * after a server action completes. The UI updates INSTANTLY without waiting
+   * for router.refresh() to re-fetch all 18 server actions (which takes 2-3s
+   * in dev mode). The background router.refresh() will reconcile shortly.
+   */
+  const mergeData = useCallback((partial: Partial<SpaData>) => {
+    setLocalData((prev) => ({ ...prev, ...partial }))
+  }, [])
+
   const openMember = useCallback((id: string) => setSelectedMemberId(id), [])
   const closeMember = useCallback(() => setSelectedMemberId(null), [])
 
   const value = useMemo<SpaContextValue>(
     () => ({
-      ...initial,
+      ...localData,
       view,
       setView,
       refresh,
+      mergeData,
       isAddMemberOpen,
       setAddMemberOpen,
       isBookApptOpen,
@@ -140,10 +173,11 @@ export function SpaShell({
       realtime,
     }),
     [
-      initial,
+      localData,
       view,
       setView,
       refresh,
+      mergeData,
       isAddMemberOpen,
       isBookApptOpen,
       isCreateInvoiceOpen,

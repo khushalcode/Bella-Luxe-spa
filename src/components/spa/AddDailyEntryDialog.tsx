@@ -35,7 +35,7 @@ interface Props {
 }
 
 export function AddDailyEntryDialog({ open, onOpenChange, entry, initialDate }: Props) {
-  const { members, services, staff, refresh } = useSpa();
+  const { members, services, staff, refresh, mergeData, dailyEntries } = useSpa();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     entryDate: initialDate ?? new Date().toISOString().slice(0, 10),
@@ -122,9 +122,19 @@ export function AddDailyEntryDialog({ open, onOpenChange, entry, initialDate }: 
       };
       if (entry) {
         await updateDailyEntry(entry.id, payload);
+        // Optimistic update — instantly reflect in UI
+        mergeData({
+          dailyEntries: dailyEntries.map((e) =>
+            e.id === entry.id ? { ...e, ...payload, id: entry.id } as DailyEntryDTO : e
+          ),
+        });
         toast.success("Daily entry updated");
       } else {
-        await createDailyEntry(payload);
+        const newEntry = await createDailyEntry(payload);
+        // Optimistic update — instantly prepend to UI
+        mergeData({
+          dailyEntries: [newEntry, ...dailyEntries],
+        });
         toast.success("Daily entry added");
       }
       onOpenChange(false);

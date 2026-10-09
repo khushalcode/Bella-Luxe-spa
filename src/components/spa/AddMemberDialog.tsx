@@ -25,7 +25,7 @@ import { createMember } from "@/app/actions/members";
 import { toast } from "sonner";
 
 export function AddMemberDialog() {
-  const { isAddMemberOpen, setAddMemberOpen, plans, refresh } = useSpa();
+  const { isAddMemberOpen, setAddMemberOpen, plans, refresh, mergeData, members } = useSpa();
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
@@ -67,7 +67,7 @@ export function AddMemberDialog() {
     }
     setSaving(true);
     try {
-      await createMember({
+      const newMember = await createMember({
         name: form.name,
         phone: form.phone,
         email: form.email || undefined,
@@ -79,6 +79,8 @@ export function AddMemberDialog() {
         startDate: form.startDate,
         amountPaid: form.amountPaid ? parseInt(form.amountPaid, 10) : undefined,
       });
+      // Optimistic update — instantly show new member in UI
+      mergeData({ members: [newMember, ...members] });
       toast.success("Member added successfully", {
         description: `${form.name} has been added to your roster.`,
       });

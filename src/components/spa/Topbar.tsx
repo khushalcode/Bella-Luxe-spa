@@ -306,7 +306,7 @@ function RealtimeIndicator() {
       title={
         isLive
           ? `Supabase Realtime connected — instant updates from all 14 tables. Last sync: ${ago}s ago`
-          : `Polling every 5 seconds. Last sync: ${ago}s ago`
+          : `Polling every 1 second. Last sync: ${ago}s ago`
       }
     >
       <span className="relative flex h-2 w-2">
@@ -319,7 +319,7 @@ function RealtimeIndicator() {
           }`}
         ></span>
       </span>
-      {isLive ? "Live" : "5s"}
+      {isLive ? "Live" : "1s"}
     </div>
   );
 }
